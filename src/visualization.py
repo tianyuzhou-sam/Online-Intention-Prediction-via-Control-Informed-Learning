@@ -4,7 +4,7 @@ import numpy as np
 import math
 
 
-iter = 100
+iter = 1000
 goal = list()
 loss = list()
 for i in range(iter):
@@ -17,7 +17,6 @@ for i in range(iter):
         loss = np.vstack((loss, data['Loss'][0]))
     if math.isnan(data['goal_error'][0][-1]) or data['goal_error'][0][-1] > 1:
         print(i)
-        print(data['goal_error'][0][-1])
 
 timestep = list(range(0, len(goal[0])))
 

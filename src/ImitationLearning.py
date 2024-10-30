@@ -17,7 +17,7 @@ class ImitationLearning:
     def __init__(self, project="", init_state=None, true_theta=None, dynsys=None, trueSys=None, dt=None, horizon=None, noise=None, pred_init=None , saveFlag=False):
 
         self.saveFlag = saveFlag
-        self.plotTrajFlag = False
+        self.plotTrajFlag = True
         self.printFlag = True
         if saveFlag:
             if not os.path.exists("results/"):
@@ -45,6 +45,14 @@ class ImitationLearning:
         self.demoSys.setDyn(self.truedyn)
         self.demoSys.setPathCost(self.trueSys.path_cost)
         self.demoSys.setFinalCost(self.trueSys.final_cost)
+        # self.theta= np.hstack((np.random.random((1,602)).flatten(),self.true_theta[-len(self.pred_init):]))
+        # self.theta= np.random.random((1,3447)).flatten()
+        data = sio.loadmat('theta.mat')
+
+        # self.theta= np.hstack((data['theta'][0],self.true_theta[-len(self.pred_init):]))
+        self.theta = data['theta'][0]
+
+        print(self.theta)
         self.demo_traj = self.demoSys.ocSolver(ini_state=init_state, horizon=horizon, auxvar_value = [])
 
         if self.printFlag:
@@ -64,12 +72,8 @@ class ImitationLearning:
 
         # ------------------------------ initilize tunable parameter ------------------------------
         self.sigma = 0.5
-        self.initial_theta = np.zeros(len(self.true_theta))
-        self.initial_theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
-        self.initial_theta[-len(self.pred_init):] = self.pred_init
-        self.theta = self.initial_theta
-        if self.printFlag:
-            print('theta = ', self.theta)
+        # self.theta = np.zeros(self.sysoc.n_auxvar)
+        # self.theta[-len(self.pred_init):] = self.pred_init
 
         self.loss = 0
         self.dp = np.zeros(self.theta.shape)
@@ -88,7 +92,6 @@ class ImitationLearning:
         self.ekf_time = []
         self.x_his = []
         self.u_his = []
-        self.theta_his = [self.theta]
 
     def set_sigma(self, sigma):
         self.sigma = sigma
@@ -102,7 +105,25 @@ class ImitationLearning:
         self.Q_prev = Q
         self.R = R
 
+    def initialize_parameter(self):
+        self.theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
+    
+    def initialize_nn_parameter(self):
+        # self.theta = np.random.random(self.sysoc.n_auxvar-len(self.pred_init)-4)
+        # self.theta = np.random.random(2257)
+        # self.theta = self.true_theta
+        # for idx in range(2257):
+        #     self.theta[idx] = self.theta[idx] + (0.5-np.random.random())*0.01
+        obj_theta = self.true_theta[-len(self.pred_init)-4:-len(self.pred_init)] + (np.random.random((1,4))-0.5)*self.sigma
+        self.theta = np.hstack((self.theta, obj_theta[0], self.pred_init))
+        print(self.theta)
+
+        self.dp = np.zeros(self.theta.shape)
+
     def solve(self):
+        self.theta_his = [self.theta]
+        if self.printFlag:
+            print('theta = ', self.theta)
         for iter in range(self.iteration):
             for idx in range(self.demo_horizon):
                 data_start_time = time.time()
@@ -174,13 +195,18 @@ class ImitationLearning:
                 updateTheta.update(dp, self.R, lossNow)
                 self.ekf_time += [time.time()-ekf_start_time]
                 if self.printFlag:
-                    if self.iteration < 10:
+                    if self.iteration < 1000:
                         print('Data = ', iter*self.demo_horizon+idx, 'Loss = ', self.Loss_his[-1])
-                        print('theta = ', updateTheta.theta)
+                        # print('theta = ', updateTheta.theta)
+                        # print('Loss = ', self.Loss_his[-1])
                         print('L goal = ', np.asarray(norm_2(self.theta[-len(self.pred_init):]-self.true_theta[-len(self.pred_init):])**2)[0,0])
                     else:
                         if(iter*self.demo_horizon+idx) % 100 == 0:
                             print('Data = ', iter*self.demo_horizon+idx, 'Loss = ', self.Loss_his[-1])
+                # print('Data = ', iter*self.demo_horizon+idx, 'Loss = ', self.Loss_his[-1])
+                # print('theta = ', updateTheta.theta)
+                # print('L goal = ', np.asarray(norm_2(self.theta[-len(self.pred_init):]-self.true_theta[-len(self.pred_init):])**2)[0,0])
+
                 self.P_prev = updateTheta.P
                 self.theta = updateTheta.theta
                 self.data_time += [time.time()-data_start_time]
@@ -196,6 +222,7 @@ class ImitationLearning:
                 # axs.set_xlim([-10,10])
                 # axs.set_ylim([-10,10])
                 # plt.show()
+                # self.plotTraj(state_traj, control_traj)
 
                 
 
@@ -206,6 +233,8 @@ class ImitationLearning:
         self.evaluateLoss(state_traj, control_traj)
         self.x_his += [state_traj]
         self.u_his += [control_traj]
+        print(self.theta)
+        print('Case ' + str(self.project) + ' Loss goal: ' + str(self.goal_error[-1]))
 
         # --------------------------- save all Loss ---------------------------
         if self.saveFlag:
@@ -225,7 +254,8 @@ class ImitationLearning:
             loss_his += [lossNorm]
             Loss += lossNorm
         self.Loss_his += [np.asarray(Loss)[0,0]]
-        self.theta_error += [np.asarray(norm_2(self.theta[:-len(self.pred_init)]-self.true_theta[:-len(self.pred_init)])**2)[0,0]]
+
+        # self.theta_error += [np.asarray(norm_2(self.theta[:-len(self.pred_init)]-self.true_theta[:-len(self.pred_init)])**2)[0,0]]
         self.goal_error += [np.asarray(norm_2(self.theta[-len(self.pred_init):]-self.true_theta[-len(self.pred_init):])**2)[0,0]]
 
 
@@ -269,14 +299,74 @@ class ImitationLearning:
 
     def plotTraj(self, state_traj, control_traj):
 
+        # iter = [*range(len(state_traj))]
+        # fig, axs = plt.subplots(len(state_traj[0]),1)
+        # for idx in range(len(state_traj[0])):
+        #     axs[idx].plot(iter, state_traj[:,idx],'b')
+        #     axs[idx].plot(iter, self.demo_state_traj[:,idx],'g')
+        #     axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'r')
+        #     axs[idx].set_ylabel("x"+str(idx+1))
+        # axs[-1].set_xlabel("Iteration")
+        # axs[0].set_title("State Trajectory")
+
         iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(len(state_traj[0]),1)
-        for idx in range(len(state_traj[0])):
+        fig, axs = plt.subplots(3,1)
+        for idx in range(3):
             axs[idx].plot(iter, state_traj[:,idx],'b')
-            axs[idx].plot(iter, self.demo_state_traj[:,idx],'r')
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'g')
-            axs[idx].set_ylabel("x"+str(idx+1))
-        axs[-1].set_xlabel("Iteration")
+            axs[idx].plot(iter, self.demo_state_traj[:,idx],'g')
+            axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'r--')
+            # axs[idx].set_ylabel("x"+str(idx+1))
+        axs[0].set_ylabel("$x$")
+        axs[1].set_ylabel("$y$")
+        axs[2].set_ylabel("$z$")
+        axs[-1].set_xlabel("$t$")
+        axs[0].set_title("State Trajectory")
+        axs[0].legend(['Predicted State','Observed State','True State'])
+
+        iter = [*range(len(state_traj))]
+        fig, axs = plt.subplots(3,1)
+        for idx in range(3):
+            axs[idx].plot(iter, state_traj[:,idx+3],'b')
+            axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'g')
+            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+3],'r--')
+            # axs[idx].set_ylabel("x"+str(idx+4))
+        axs[0].set_ylabel("$v_x$")
+        axs[1].set_ylabel("$v_y$")
+        axs[2].set_ylabel("$v_z$")
+        axs[-1].set_xlabel("$t$")
+        axs[0].set_title("State Trajectory")
+
+        iter = [*range(len(state_traj))]
+        fig, axs = plt.subplots(4,1)
+        for idx in range(4):
+            axs[idx].plot(iter, state_traj[:,idx+6],'b')
+            axs[idx].plot(iter, self.demo_state_traj[:,idx+6],'g')
+            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+6],'r--')
+            # axs[idx].set_ylabel("x"+str(idx+7))
+            if idx > 0:
+                axs[idx].set_ylim([-1,1])
+            else:
+                axs[idx].set_ylim([0,2])
+        axs[0].set_ylabel("$q_1$")
+        axs[1].set_ylabel("$q_2$")
+        axs[2].set_ylabel("$q_3$")
+        axs[3].set_ylabel("$q_4$")
+        axs[-1].set_xlabel("$t$")
+        axs[0].set_title("State Trajectory")
+
+
+        iter = [*range(len(state_traj))]
+        fig, axs = plt.subplots(3,1)
+        for idx in range(3):
+            axs[idx].plot(iter, state_traj[:,idx+10],'b')
+            axs[idx].plot(iter, self.demo_state_traj[:,idx+10],'g')
+            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+10],'r--')
+            # axs[idx].set_ylabel("x"+str(idx+11))
+            axs[idx].set_ylim([-1,1])
+        axs[0].set_ylabel("$\omega_x$")
+        axs[1].set_ylabel("$\omega_y$")
+        axs[2].set_ylabel("$\omega_z$")
+        axs[-1].set_xlabel("$t$")
         axs[0].set_title("State Trajectory")
 
         iter = [*range(len(control_traj))]
