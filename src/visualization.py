@@ -8,14 +8,14 @@ iter = 1000
 goal = list()
 loss = list()
 for i in range(iter):
-    data = sio.loadmat('results/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/normal_01/result_' + str(i) + '.mat')
     if i == 0:
         goal = data['goal_error'][0]
         loss = data['Loss'][0]
     elif not math.isnan(data['goal_error'][0][-1]):
         goal = np.vstack((goal, data['goal_error'][0]))
         loss = np.vstack((loss, data['Loss'][0]))
-    if math.isnan(data['goal_error'][0][-1]) or data['goal_error'][0][-1] > 1:
+    if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 1000:
         print(i)
 
 timestep = list(range(0, len(goal[0])))
@@ -33,7 +33,7 @@ loss_lb = loss_avg - 3*loss_std
 fig, ax = plt.subplots()
 line_goal, = ax.plot(goal_avg, color='b', linewidth=4)
 ax.fill_between(timestep, goal_lb, goal_ub, color='lightskyblue')
-ax.set_ylim([0,60])
+ax.set_ylim([0,150])
 # ax.set_yscale('log')
 
 fig, ax = plt.subplots()

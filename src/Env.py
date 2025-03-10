@@ -29,7 +29,7 @@ class Quadrotor:
         f1, f2, f3, f4 = SX.sym('f1'), SX.sym('f2'), SX.sym('f3'), SX.sym('f4')
         self.T_B = vertcat(f1, f2, f3, f4)
 
-    def initDyn(self, Jx=None, Jy=None, Jz=None, mass=None, l=None, c=0.01):
+    def initDyn(self, Jx=None, Jy=None, Jz=None, mass=None, l=None, c=None):
         # global parameter
         g = 10
 
@@ -109,34 +109,6 @@ class Quadrotor:
         # Note that here we use auxvar to denote the parameter of the neural dynamic
         layers = hidden_layers + [self.X.shape[0]]
 
-        g = 10
-        # Angular moment of inertia
-        self.J_B = diag(vertcat(self.Jx, self.Jy, self.Jz))
-        # Gravity
-        self.g_I = vertcat(0, 0, -g)
-        # Mass of rocket, assume is little changed during the landing process
-        self.m = self.mass
-
-        # total thrust in body frame
-        thrust = self.T_B[0] + self.T_B[1] + self.T_B[2] + self.T_B[3]
-        self.thrust_B = vertcat(0, 0, thrust)
-        # total moment M in body frame
-        Mx = -self.T_B[1] * self.l / 2 + self.T_B[3] * self.l / 2
-        My = -self.T_B[0] * self.l / 2 + self.T_B[2] * self.l / 2
-        Mz = (self.T_B[0] - self.T_B[1] + self.T_B[2] - self.T_B[3]) * self.c
-        self.M_B = vertcat(Mx, My, Mz)
-
-        # cosine directional matrix
-        C_B_I = self.dir_cosine(self.q)  # inertial to body
-        C_I_B = transpose(C_B_I)  # body to inertial
-
-        # Newton's law
-        dr_I = self.v_I
-        dv_I = 1 / self.m * mtimes(C_I_B, self.thrust_B) + self.g_I
-        # Euler's law
-        dq = 1 / 2 * mtimes(self.omega(self.w_B), self.q)
-        dw = mtimes(inv(self.J_B), self.M_B - mtimes(mtimes(self.skew(self.w_B), self.J_B), self.w_B))
-
         self.X = vertcat(self.r_I, self.v_I, self.q, self.w_B)
         self.U = self.T_B
 
@@ -149,8 +121,14 @@ class Quadrotor:
         dyn_auxvar += [bk]
         a = mtimes(Ak, a) + bk
         for i in range(len(layers)-1):
-            a = tanh(a)
+            # a = tanh(a)
+            a = 1/(1+exp(-a))
+            # a = a/(1+exp(-a))
+            # a = exp(-a**2)
+            # a = sin(a)
+            # a = log(1+exp(a))
             # a = if_else(a > 0, a, 0)
+            # a = if_else(a > 0, a, exp(a)-1)
             # a = 0.5*a*(1+tanh(sqrt(2/pi)*(a+0.044715*a**3)))
             Ak = SX.sym('Ak', layers[i+1], layers[i])  # weights matrix
             bk = SX.sym('bk', layers[i+1])  # bias vector
@@ -162,9 +140,13 @@ class Quadrotor:
         self.f = a
 
 
-    def initCost(self, wr=None, wv=None, wq=None, ww=None, goal=None, goal_v_I=None, goal_q=None, goal_w_B=None, wthrust=0.1):
+    def initCost(self, wthrust=None, wr=None, wv=None, wq=None, ww=None, goal=None, goal_v_I=None, goal_q=None, goal_w_B=None):
 
         parameter = []
+        if wthrust is None:
+            wthrust = SX.sym('wthrust')
+            parameter += [wthrust]
+        
         if wr is None:
             self.wr = SX.sym('wr')
             parameter += [self.wr]
@@ -225,6 +207,8 @@ class Quadrotor:
             parameter += [w3]
         else:
             self.goal_w_B = goal_w_B
+
+
 
         self.cost_auxvar = vcat(parameter)
 
@@ -256,98 +240,6 @@ class Quadrotor:
                           self.ww * self.cost_w_B + \
                           self.wq * self.cost_q
         
-    def initCostNeural(self, wr=None, wv=None, wq=None, ww=None, goal=None, goal_v_I=None, goal_q=None, goal_w_B=None, wthrust=0.1):
-
-        parameter = []
-        if wr is None:
-            self.wr = SX.sym('wr')
-            parameter += [self.wr]
-        else:
-            self.wr = wr
-
-        if wv is None:
-            self.wv = SX.sym('wv')
-            parameter += [self.wv]
-        else:
-            self.wv = wv
-
-        if wq is None:
-            self.wq = SX.sym('wq')
-            parameter += [self.wq]
-        else:
-            self.wq = wq
-
-        if ww is None:
-            self.ww = SX.sym('ww')
-            parameter += [self.ww]
-        else:
-            self.ww = ww
-
-        if goal is None:
-            xg, yg, zg = SX.sym('xg'), SX.sym('yg'), SX.sym('zg')
-            self.goal_r_I = vertcat(xg, yg, zg)
-            parameter += [xg]
-            parameter += [yg]
-            parameter += [zg]
-        else:
-            self.goal_r_I = goal
-
-        if goal_v_I is None:
-            xvg, yvg, zvg = SX.sym('xvg'), SX.sym('yvg'), SX.sym('zvg')
-            self.goal_v_I = vertcat(xvg, yvg, zvg)
-            parameter += [xvg]
-            parameter += [yvg]
-            parameter += [zvg]
-        else:
-            self.goal_v_I = goal_v_I
-
-        if goal_q is None:
-            q1, q2, q3, q4 = SX.sym('q1'), SX.sym('q2'), SX.sym('q3'), SX.sym('q4')
-            self.goal_q = vertcat(q1, q2, q3, q4)
-            parameter += [q1]
-            parameter += [q2]
-            parameter += [q3]
-            parameter += [q4]
-        else:
-            self.goal_q = goal_q
-
-        if goal_w_B is None:
-            w1, w2, w3 = SX.sym('w1'), SX.sym('w2'), SX.sym('w3')
-            self.goal_w_B = vertcat(w1, w2, w3)
-            parameter += [w1]
-            parameter += [w2]
-            parameter += [w3]
-        else:
-            self.goal_w_B = goal_w_B
-
-        self.cost_auxvar = vcat(parameter)
-
-        # goal position in the world frame
-        self.cost_r_I = dot(self.r_I - self.goal_r_I, self.r_I - self.goal_r_I)
-
-        # goal velocity
-        self.cost_v_I = dot(self.v_I - self.goal_v_I, self.v_I - self.goal_v_I)
-
-        # final attitude error
-        goal_R_B_I = self.dir_cosine(self.goal_q)
-        R_B_I = self.dir_cosine(self.q)
-        self.cost_q = trace(np.identity(3) - mtimes(transpose(goal_R_B_I), R_B_I))
-
-        # auglar velocity cost
-        self.cost_w_B = dot(self.w_B - self.goal_w_B, self.w_B - self.goal_w_B)
-
-        # the thrust cost
-        self.cost_thrust = dot(self.T_B, self.T_B)
-
-        self.path_cost = self.wv * self.cost_v_I + \
-                         self.ww * self.cost_w_B + \
-                         self.wq * self.cost_q + \
-                         wthrust * self.cost_thrust
-
-        self.final_cost = self.wr * self.cost_r_I + \
-                          self.wv * self.cost_v_I + \
-                          self.ww * self.cost_w_B + \
-                          self.wq * self.cost_q
 
     def get_quadrotor_position(self, wing_len, state_traj):
 

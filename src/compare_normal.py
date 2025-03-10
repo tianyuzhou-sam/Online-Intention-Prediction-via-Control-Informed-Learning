@@ -19,17 +19,13 @@ for i in range(iter):
         goal = np.vstack((goal, data['goal_error'][0]))
         loss = np.vstack((loss, data['Loss'][0]))
         data_time = np.hstack((data_time, data['data_time'][0].tolist()))
-    if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
-        print(i)
-        print(data['goal_error'][0][-1])
+    # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
+    #     print(i)
+    #     print(data['goal_error'][0][-1])
 
 
 timestep = list(range(0, len(goal[0])))
 
-time_avg = np.mean(data_time, 0)
-time_std = np.std(data_time, 0)
-print('Average time: ', time_avg)
-print('Std time: ', time_std)
 
 goal_avg = np.mean(goal, 0)
 goal_std = np.std(goal, 0)
@@ -45,7 +41,7 @@ goal01 = list()
 loss01 = list()
 data_time01 = list()
 for i in range(iter):
-    data = sio.loadmat('results/noise_01/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/normal_01/result_' + str(i) + '.mat')
     
     if i == 0:
         goal01 = data['goal_error'][0]
@@ -55,14 +51,9 @@ for i in range(iter):
         goal01 = np.vstack((goal01, data['goal_error'][0]))
         loss01 = np.vstack((loss01, data['Loss'][0]))
         data_time01 = np.hstack((data_time01, data['data_time'][0].tolist()))
-    if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
-        print(i)
-        print(data['goal_error'][0][-1])
-
-time_avg01 = np.mean(data_time01, 0)
-time_std01 = np.std(data_time01, 0)
-print('Average time: ', time_avg01)
-print('Std time: ', time_std01)
+    # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
+    #     print(i)
+    #     print(data['goal_error'][0][-1])
 
 goal_avg01 = np.mean(goal01, 0)
 goal_std01 = np.std(goal01, 0)
@@ -78,7 +69,7 @@ goal1 = list()
 loss1 = list()
 data_time1 = list()
 for i in range(iter):
-    data = sio.loadmat('results/noise_1/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/normal_05/result_' + str(i) + '.mat')
     
     if i == 0:
         goal1 = data['goal_error'][0]
@@ -88,14 +79,10 @@ for i in range(iter):
         goal1 = np.vstack((goal1, data['goal_error'][0]))
         loss1 = np.vstack((loss1, data['Loss'][0]))
         data_time1 = np.hstack((data_time1, data['data_time'][0].tolist()))
-    if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
-        print(i)
-        print(data['goal_error'][0][-1])
+    # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
+    #     print(i)
+    #     print(data['goal_error'][0][-1])
 
-time_avg1 = np.mean(data_time1, 0)
-time_std1 = np.std(data_time1, 0)
-print('Average time: ', time_avg1)
-print('Std time: ', time_std1)
 
 goal_avg1 = np.mean(goal1, 0)
 goal_std1 = np.std(goal1, 0)
@@ -111,7 +98,7 @@ goal2 = list()
 loss2 = list()
 data_time2 = list()
 for i in range(iter):
-    data = sio.loadmat('results/noise_2/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/normal_1/result_' + str(i) + '.mat')
     
     if i == 0:
         goal2 = data['goal_error'][0]
@@ -121,14 +108,10 @@ for i in range(iter):
         goal2 = np.vstack((goal2, data['goal_error'][0]))
         loss2 = np.vstack((loss2, data['Loss'][0]))
         data_time2 = np.hstack((data_time2, data['data_time'][0].tolist()))
-    if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 1000:
-        print(i)
-        print(data['goal_error'][0][-1])
+    # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 1000:
+    #     print(i)
+    #     print(data['goal_error'][0][-1])
 
-time_avg2 = np.mean(data_time2, 0)
-time_std2 = np.std(data_time2, 0)
-print('Average time: ', time_avg2)
-print('Std time: ', time_std2)
 
 goal_avg2 = np.mean(goal2, 0)
 goal_std2 = np.std(goal2, 0)
@@ -140,36 +123,39 @@ loss_std2 = np.std(loss2, 0)
 loss_ub2 = loss_avg2 + 3*loss_std2
 loss_lb2 = loss_avg2 - 3*loss_std2
 
+plt.rcParams['font.size'] = 24
+plt.rcParams["figure.figsize"] = (10,8)
 fig, ax = plt.subplots()
-line_goal2, = ax.plot(goal_avg2, color='yellow', linewidth=4)
-ax.fill_between(timestep, goal_lb2, goal_ub2, color='yellow')
+line_goal2, = ax.plot(goal_avg2, color='purple', linewidth=4)
+ax.fill_between(timestep, goal_lb2, goal_ub2, color='violet')
 line_goal1, = ax.plot(goal_avg1, color='r', linewidth=4)
 ax.fill_between(timestep, goal_lb1, goal_ub1, color='lightcoral', alpha=0.7)
 line_goal01, = ax.plot(goal_avg01, color='g', linewidth=4)
 ax.fill_between(timestep, goal_lb01, goal_ub01, color='lightgreen')
 line_goal, = ax.plot(goal_avg, color='b', linewidth=4)
 ax.fill_between(timestep, goal_lb, goal_ub, color='lightskyblue')
-ax.legend([line_goal, line_goal01, line_goal1, line_goal2], ['0','0.1','1','2'])
-ax.set_title('Prediction error at different noise level')
+ax.legend([line_goal, line_goal01, line_goal1, line_goal2], ['$\sigma=0$','$\sigma=0.1$','$\sigma=0.5$','$\sigma=1$'])
+# ax.set_title('Prediction error at different Gaussian noise level')
 ax.set_xlabel('$t$')
-ax.set_ylabel('Error')
-ax.set_ylim([0,125])
+ax.set_ylabel('Prediction error')
+ax.set_ylim([0,160])
 # ax.set_yscale('log')
 
 fig, ax = plt.subplots()
-line_loss2, = ax.plot(loss_avg2, color='yellow', linewidth=4)
-ax.fill_between(timestep, loss_lb2, loss_ub2, color='yellow')
+line_loss2, = ax.plot(loss_avg2, color='purple', linewidth=4)
+ax.fill_between(timestep, loss_lb2, loss_ub2, color='violet')
 line_loss1, = ax.plot(loss_avg1, color='r', linewidth=4)
 ax.fill_between(timestep, loss_lb1, loss_ub1, color='lightcoral', alpha=0.7)
 line_loss01, = ax.plot(loss_avg01, color='g', linewidth=4)
 ax.fill_between(timestep, loss_lb01, loss_ub01, color='lightgreen')
 line_loss, = ax.plot(loss_avg, color='b', linewidth=4)
 ax.fill_between(timestep, loss_lb, loss_ub, color='lightskyblue')
-ax.legend([line_loss, line_loss01, line_loss1, line_loss2], ['0','0.1','1','2'])
-ax.set_ylim([0,2000])
-ax.set_title('Trajectory loss at different noise level')
+ax.legend([line_loss, line_loss01, line_loss1, line_loss2], ['$\sigma=0$','$\sigma=0.1$','$\sigma=0.5$','$\sigma=1$'])
+ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
+ax.set_ylim([0,4000])
+# ax.set_title('Trajectory loss at different Gaussian noise level')
 ax.set_xlabel('$t$')
-ax.set_ylabel('Loss')
+ax.set_ylabel('Trajectory Loss')
 # ax.set_yscale('log')
 
 plt.show()

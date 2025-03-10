@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 sys.path.append(os.getcwd() + '/externals/Pontryagin-Differentiable-Programming')
 from PDP import PDP
 sys.path.append(os.getcwd() + '/src')
-import ImitationLearning
 import Env
 
 
@@ -39,8 +38,8 @@ dynsys = Env.Quadrotor()
 dynsys.initDyn()
 n_state = dynsys.X.size()[0]
 n_control = dynsys.U.size()[0]
-dynsys.initNeuralDyn(hidden_layers=[nnFactor*(n_state+n_control), nnFactor*(n_state+n_control)])
-# dynsys.initDyn(true_theta[0], true_theta[1], true_theta[2], true_theta[3], true_theta[4])
+# dynsys.initNeuralDyn(hidden_layers=[nnFactor*(n_state+n_control), nnFactor*(n_state+n_control)])
+dynsys.initDyn(true_theta[0], true_theta[1], true_theta[2], true_theta[3], true_theta[4])
 dynsys.initCost(true_theta[5], true_theta[6], true_theta[7], true_theta[8], goal_position, goal_v_I, goal_q, goal_w_B, wthrust)
 
 theta = sio.loadmat('theta.mat')
@@ -83,13 +82,13 @@ ref_state = np.zeros((horizon+1,n_state))
 ref_control = np.zeros((horizon,n_control))
 
 eq = [0,0,0,0]
-eq = [2.5,2.5,2.5,2.5]
+# eq = [2.5,2.5,2.5,2.5]
 
 ref_state[0] = x0
 for idx in range(horizon):
     ref_control[idx] = [0,0,0,0]
     for state in range(n_state):
-        ref_state[idx+1][state] = demoSys.dyn_fn(ref_state[idx], ref_control[idx]+eq, theta)[state]
+        ref_state[idx+1][state] = init_state
 
 
 fig, axs = plt.subplots(3,1)
@@ -105,7 +104,7 @@ axs[0].set_title("State Trajectory")
 plt.show()
 
 start_time = time.time()
-for iter in range(1000):
+for iter in range(500):
     for idx in range(horizon):
         xk = ref_state[idx,:]
         uk = ref_control[idx,:]+eq
