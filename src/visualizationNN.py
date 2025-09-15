@@ -41,7 +41,7 @@ loss_std = np.std(loss, 0)
 loss_ub = loss_avg + 3*loss_std
 loss_lb = loss_avg - 3*loss_std
 
-plt.rcParams['font.size'] = 24
+plt.rcParams['font.size'] = 30
 plt.rcParams["figure.figsize"] = (10,8)
 fig, ax = plt.subplots()
 line_goal, = ax.plot(goal_avg, color='b', linewidth=4)
@@ -49,6 +49,7 @@ ax.fill_between(timestep, goal_lb, goal_ub, color='lightskyblue')
 ax.set_ylim([0,250])
 ax.set_xlabel('Number of data points')
 ax.set_ylabel('Prediction error')
+ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 # ax.set_yscale('log')
 # ax.set_title('Prediction error of goal state ')
 
@@ -59,6 +60,7 @@ axins1 = zoomed_inset_axes(ax, 5, loc=7)
 axins1.plot(timestep[80:150], loss_avg[80:150], color="b", linewidth=3)
 axins1.fill_between(timestep[80:150], loss_lb[80:150], loss_ub[80:150], color='lightskyblue')
 axins1.set_ylim([1e1,4000])
+axins1.set_xlim(80, 150)
 mark_inset(ax, axins1, loc1=2, loc2=3, fc="none", ec="0.5")
 # ax.set_ylim([0,35000])
 ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))

@@ -123,7 +123,7 @@ loss_std2 = np.std(loss2, 0)
 loss_ub2 = loss_avg2 + 3*loss_std2
 loss_lb2 = loss_avg2 - 3*loss_std2
 
-plt.rcParams['font.size'] = 24
+plt.rcParams['font.size'] = 30
 plt.rcParams["figure.figsize"] = (10,8)
 fig, ax = plt.subplots()
 line_goal2, = ax.plot(goal_avg2, color='purple', linewidth=4)

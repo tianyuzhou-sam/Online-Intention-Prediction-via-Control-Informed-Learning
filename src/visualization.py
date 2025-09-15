@@ -4,11 +4,11 @@ import numpy as np
 import math
 
 
-iter = 1000
+iter = 600
 goal = list()
 loss = list()
 for i in range(iter):
-    data = sio.loadmat('results/normal_01/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/result_' + str(i) + '.mat')
     if i == 0:
         goal = data['goal_error'][0]
         loss = data['Loss'][0]

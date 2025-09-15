@@ -2,7 +2,8 @@ import matplotlib.pyplot as plt
 import scipy.io as sio
 import numpy as np
 import math
-
+from mpl_toolkits.axes_grid1.inset_locator import zoomed_inset_axes
+from mpl_toolkits.axes_grid1.inset_locator import mark_inset
 
 iter = 10
 goal = list()
@@ -124,7 +125,7 @@ loss_lb1 = loss_avg1 - 3*loss_std1
 # loss_lb2 = loss_avg2 - 3*loss_std2
 
 
-plt.rcParams['font.size'] = 24
+plt.rcParams['font.size'] = 30
 plt.rcParams["figure.figsize"] = (10,8)
 fig, ax = plt.subplots()
 line_goal1, = ax.plot(goal_avg1, color='r', linewidth=4)
@@ -138,6 +139,7 @@ ax.legend([line_goal1, line_goal, line_goal3], ['NN parameters = 2121','NN param
 # ax.set_title('Prediction error at different NN size')
 ax.set_xlabel('Number of data points')
 ax.set_ylabel('Prediction error')
+ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 ax.set_ylim([0,250])
 # ax.set_yscale('log')
 
@@ -148,11 +150,28 @@ line_loss01, = ax.plot(loss_avg01, color='g', linewidth=4)
 ax.fill_between(timestep, loss_lb01, loss_ub01, color='lightgreen')
 line_loss, = ax.plot(loss_avg, color='b', linewidth=4)
 ax.fill_between(timestep, loss_lb, loss_ub, color='lightskyblue')
-
-ax.legend([line_loss1, line_loss, line_loss01], ['NN parameters = 2121','NN parameters = 3889','NN parameters = 5793'])
+# ax.legend([line_loss1, line_loss, line_loss01], ['NN parameters = 2121','NN parameters = 3889','NN parameters = 5793'])
 ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
 ax.set_ylim([1e1,60000])
-# ax.set_title('Trajectory loss at different NN size')
+
+# Add zoomed inset axes
+zoom0 = 60
+zoom1 = 200
+axins = zoomed_inset_axes(ax, 2.5, loc=7)  # zoom factor: 2.5
+axins.plot(timestep[zoom0:zoom1], loss_avg1[zoom0:zoom1], color='r', linewidth=4)
+axins.fill_between(timestep[zoom0:zoom1], loss_lb1[zoom0:zoom1], loss_ub1[zoom0:zoom1], color='lightcoral', alpha=0.7)
+axins.plot(timestep[zoom0:zoom1], loss_avg01[zoom0:zoom1], color='g', linewidth=4)
+axins.fill_between(timestep[zoom0:zoom1], loss_lb01[zoom0:zoom1], loss_ub01[zoom0:zoom1], color='lightgreen')
+axins.plot(timestep[zoom0:zoom1], loss_avg[zoom0:zoom1], color='b', linewidth=4)
+axins.fill_between(timestep[zoom0:zoom1], loss_lb[zoom0:zoom1], loss_ub[zoom0:zoom1], color='lightskyblue')
+
+# Set the limits for the zoomed region
+axins.set_xlim(zoom0, zoom1)
+axins.set_ylim(0, 6000)
+
+# Draw connecting lines between the axes and the inset
+mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
 ax.set_xlabel('Number of data points')
 ax.set_ylabel('Trajectory Loss')
 

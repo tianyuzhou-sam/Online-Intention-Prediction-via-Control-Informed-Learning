@@ -5,10 +5,10 @@ import os
 import sys
 import transforms3d
 sys.path.append(os.getcwd() + '/src')
-import ImitationLearning
+import ImitationLearningMPC
 import Env
 
-for iter in range(0, 1000):
+for iter in range(0, 1):
     # ------------------------------ Set up parameters ------------------------------
     init_position = [0,0,0]
     init_velocity = [2*(np.random.random()-0.5),2*(np.random.random()-0.5),2*(np.random.random()-0.5)]
@@ -19,15 +19,19 @@ for iter in range(0, 1000):
     height_range = 2
     angle = (np.random.random()-0.5) * 2 * np.pi
     goal_position = [goal_range*np.cos(angle)+(np.random.random()-0.5)*goal_offset, goal_range*np.sin(angle)+(np.random.random()-0.5)*goal_offset, height_range*np.random.random()]
-    print(goal_position)
+
     goal_v_I = np.array([0, 0, 0])
     goal_q = Env.toQuaternion(0, [0, 0, 1])
     goal_w_B = np.array([0, 0, 0])
+
+    goal_position = [10,5,1]
     true_theta = np.hstack([1, 1, 1, 1, 0.4, 0.01, 0.1, 10, 1, 5, 1, goal_position, goal_v_I, goal_q, goal_w_B])
-    
+
     dt = 0.15
-    noise = 0.5
-    horizon = 80
+    noise = 0.
+    horizon = 100
+    H = 100
+    MemoryTime = 10
 
     init_range = 10
     angle = (np.random.random()-0.5) * 2 * np.pi
@@ -35,10 +39,10 @@ for iter in range(0, 1000):
     pred = [goal_position[0]+np.cos(angle)*dist,goal_position[1]+np.sin(angle)*dist,goal_position[2]+(np.random.random()-0.5)*height_range]
     pred = init_position
     pred_init = np.hstack([pred, goal_v_I, goal_q, goal_w_B])
-    print(pred_init)
+
     # ------------------------------ Set up dynamic system ------------------------------
     project = str(iter)
-    saveFlag = True
+    saveFlag = False
     dynsys = Env.Quadrotor()
     dynsys.initDyn()
     dynsys.initCost()
@@ -50,23 +54,28 @@ for iter in range(0, 1000):
     R = np.array([[1,0,0],[0,1,0],[0,0,1]]) # rotation matrix in numpy 2D array
     init_state = np.hstack([init_position, init_velocity, transforms3d.quaternions.mat2quat(R).tolist(), 0, 0, 0])
 
-    system = ImitationLearning.ImitationLearning(project, init_state, true_theta, dynsys, trueSys, dt, horizon, noise, pred_init, saveFlag)
+    system = ImitationLearningMPC.ImitationLearning(project, init_state, true_theta, dynsys, trueSys, dt, horizon, H, MemoryTime, noise, pred_init, saveFlag)
     system.set_iteration(1)
+    system.set_sigma(0.1)
     system.initialize_parameter()
 
+    switch_time = [1000]
+    switch_goal = [[10,0,1]]
+
+    system.switch_target(switch_time, switch_goal)
+
     # --------------------------- initilize EKF ----------------------------------------
-    P = np.eye(24) * 0.001
+    P = np.eye(24) * 0.000000001
     for idx in range(0,11):
-        P[idx,idx] = P[idx,idx]*0
+        P[idx,idx] = P[idx,idx]*1
     for idx in range(11,14):
-        P[idx,idx] = P[idx,idx]*10000
+        P[idx,idx] = P[idx,idx]*1000000
     Q = np.eye(24) * 0.
-    R = np.eye(13) * 0.5
+    R = np.eye(13) * 0.0000001
 
     system.initialize_EKF(P, Q, R)
 
     system.solve()
-    # print('case ' + str(iter) + ' done')
 
 
 
