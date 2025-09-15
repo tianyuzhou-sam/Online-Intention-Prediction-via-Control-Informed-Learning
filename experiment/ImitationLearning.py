@@ -2,11 +2,12 @@ import numpy as np
 from casadi import *
 import scipy.io as sio
 import matplotlib.pyplot as plt 
-import matplotlib.ticker as mticker
 import os, shutil
 import sys
 import time
 import math
+import csv
+import pandas as pd
 sys.path.append(os.getcwd() + '/externals/Pontryagin-Differentiable-Programming')
 from PDP import PDP
 sys.path.append(os.getcwd() + '/src/')
@@ -17,10 +18,14 @@ import copy
 
 
 class ImitationLearning:
-    def __init__(self, project="", init_state=None, true_theta=None, dynsys=None, trueSys=None, dt=None, horizon=None, noise=None, pred_init=None , saveFlag=False):
+    def __init__(self, project="dog", init_state=None, true_theta=None, dynsys=None, dt=None, horizon=None, pred_init=None , saveFlag=False):
 
+        if project == 'dog':
+            self.start_time = 9
+        elif project == 'quad':
+            self.start_time = 11
         self.saveFlag = saveFlag
-        self.plotTrajFlag = False
+        self.plotTrajFlag = True
         self.printFlag = True
         if saveFlag:
             if not os.path.exists("results/"):
@@ -29,34 +34,82 @@ class ImitationLearning:
         # ------------------------------ set up system ------------------------------
         self.project = project
         self.dynsys = dynsys
-        self.trueSys = trueSys
-        self.num_dyn_auxvar = dynsys.dyn_auxvar.shape[0]
-        self.num_cost_auxvar = dynsys.cost_auxvar.shape[0]
         self.dt = dt
         self.demo_horizon = horizon
         self.init_state = init_state
-        self.noise = noise
         self.pred_init = pred_init
         
         # ------------------------------ get demos data ------------------------------
-        self.true_theta = true_theta
-        self.demoSys = PDP.OCSys()
-        self.demoSys.setAuxvarVariable(vertcat(self.trueSys.dyn_auxvar, self.trueSys.cost_auxvar))
-        self.demoSys.setControlVariable(self.trueSys.U)
-        self.demoSys.setStateVariable(self.trueSys.X)
-        self.truedyn = self.trueSys.X + self.dt * self.trueSys.f
-        self.demoSys.setDyn(self.truedyn)
-        self.demoSys.setPathCost(self.trueSys.path_cost)
-        self.demoSys.setFinalCost(self.trueSys.final_cost)
+        
 
-        self.demo_traj = self.demoSys.ocSolver(ini_state=init_state, horizon=horizon, auxvar_value = [])
+        if project == 'dog':
+            # load csv file
+            with open('experiment/dog_data.csv', 'r') as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=',')
+                data = []
+                for row in csv_reader:
+                    # Convert string values to float
+                    data.append([float(val) for val in row])
+                self.demo_traj = np.array(data)
+            self.demo_traj[:,0] = self.demo_traj[:,0] - self.demo_traj[0, 0]
+            
+            # Filter data for specific time intervals
+            mask = (self.demo_traj[:,0] >= self.start_time) & (self.demo_traj[:,0] <= self.start_time + self.dt*self.demo_horizon)
+            filtered_indices = np.where(mask)[0]
+            # Get samples at dt=0.1 intervals
 
-        if self.printFlag:
-            print('True theta', self.true_theta)
+            time_points = np.arange(self.start_time, self.start_time + self.demo_horizon*self.dt + 0.1, self.dt)
+            sampled_indices = []
+            for t in time_points:
+                # Find the closest time point in the data
+                idx = np.abs(self.demo_traj[filtered_indices, 0] - t).argmin()
+                sampled_indices.append(filtered_indices[idx])
+            
+            self.demo_traj = self.demo_traj[sampled_indices]
+            self.demo_traj = self.demo_traj[:(self.demo_horizon+1),:]
+            
+            self.demo_state_traj = np.column_stack((self.demo_traj[:,1], self.demo_traj[:,2], self.demo_traj[:,6]))
+
+        # if project == 'quad':
+        #     data = sio.loadmat('experiment/quad_demos.mat')
+        #     self.demo_state_traj_original = data['trajectories']['state_traj_opt'][0][0]
+        #     self.demo_state_traj = data['trajectories']['state_traj_opt'][0][0]
+        if project == 'quad':
+        #     # load csv file
+            with open('experiment/quad_data.csv', 'r') as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=',')
+                data = []
+                for row in csv_reader:
+                    # Convert string values to float
+                    data.append([float(val) for val in row])
+                self.demo_traj = np.array(data)
+            self.demo_traj[:,0] = self.demo_traj[:,0] - self.demo_traj[0, 0]
+            
+            # Filter data for specific time intervals
+            mask = (self.demo_traj[:,0] >= self.start_time) & (self.demo_traj[:,0] <= self.start_time + self.dt*self.demo_horizon)
+            filtered_indices = np.where(mask)[0]
+            # Get samples at dt=0.1 intervals
+
+            time_points = np.arange(self.start_time, self.start_time + self.demo_horizon*self.dt + 0.1, self.dt)
+            sampled_indices = []
+            for t in time_points:
+                # Find the closest time point in the data
+                idx = np.abs(self.demo_traj[filtered_indices, 0] - t).argmin()
+                sampled_indices.append(filtered_indices[idx])
+            
+            self.demo_traj = self.demo_traj[sampled_indices]
+            self.demo_traj = self.demo_traj[:(self.demo_horizon+1),:]
+            
+            self.demo_state_traj = np.column_stack((self.demo_traj[:,1], self.demo_traj[:,2], self.demo_traj[:,6]))
+            self.init_state[0] = self.demo_state_traj[0,0]
+            self.init_state[1] = self.demo_state_traj[0,1]
 
         # ------------------------------ initialize Classes ------------------------------
         self.sysoc = PDP.OCSys()
-        self.sysoc.setAuxvarVariable(vertcat(self.dynsys.dyn_auxvar, self.dynsys.cost_auxvar))
+        if project == 'dog':
+            self.sysoc.setAuxvarVariable(self.dynsys.cost_auxvar)
+        if project == 'quad':
+            self.sysoc.setAuxvarVariable(vertcat(self.dynsys.dyn_auxvar, self.dynsys.cost_auxvar))
         self.sysoc.setControlVariable(self.dynsys.U)
         self.sysoc.setStateVariable(self.dynsys.X)
         self.dyn = self.dynsys.X + self.dt * self.dynsys.f
@@ -66,19 +119,44 @@ class ImitationLearning:
         self.sysoc.diffPMP()
         self.lqr_solver = PDP.LQR()
 
+        # if project == 'dog':
+        self.true_theta = true_theta
+        self.theta = np.zeros(len(self.true_theta))
+        if project == 'dog':
+            self.true_theta = np.hstack((self.true_theta, self.demo_state_traj[-1, :2]))
+        if project == 'quad':
+            self.true_theta = np.hstack((self.true_theta, self.demo_state_traj[-1, :3]))
+
+
+        self.sigma = 0.0
+        if project == 'dog':
+            self.theta = np.hstack((self.theta, self.pred_init))
+        if project == 'quad':
+            self.theta = np.hstack((self.theta, self.demo_state_traj[0, :3]))
+
+        for idx in range(len(self.true_theta)-len(self.pred_init)):
+            self.theta[idx] = self.true_theta[idx] + self.sigma * (np.random.random() - 0.5)*self.true_theta[idx]
+        print('true theta', self.true_theta)
+        print('Initial theta', self.theta)
+            
+        # if project == '3':
+        #     self.true_theta = true_theta
+        #     self.theta = np.array(true_theta)
+        #     self.theta[-2] = self.pred_init[0]
+        #     self.theta[-1] = self.pred_init[1]
+        
+        print(self.theta)
+        # print(self.demo_state_traj)
+        # print('True theta', self.true_theta)
+
         # ------------------------------ initilize tunable parameter ------------------------------
-        self.sigma = 0.5
-        self.theta = np.zeros(self.sysoc.n_auxvar)
-        self.theta[-len(self.pred_init):] = self.pred_init
+
 
         self.loss = 0
         self.dp = np.zeros(self.theta.shape)
-        self.demo_state_traj_original = self.demo_traj['state_traj_opt']
-        self.demo_control_traj = self.demo_traj['control_traj_opt']
-        # if project == 'uniform':
-        # self.demo_state_traj = self.demo_state_traj_original + (np.random.random((self.demo_horizon+1,len(init_state)))-0.5)*noise
-        # if project == 'normal':
-        self.demo_state_traj = self.demo_state_traj_original + np.random.normal(0, noise, (self.demo_horizon+1,len(init_state)))
+        
+        
+        
         self.ref_traj = list()
 
         # ------------------------------ other setup ------------------------------
@@ -104,11 +182,6 @@ class ImitationLearning:
         self.Q_prev = Q
         self.R = R
 
-    def initialize_parameter(self):
-        # self.theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
-        for idx in range(len(self.true_theta)-len(self.pred_init)):
-            self.theta[idx] = self.true_theta[idx] + self.sigma * (np.random.random() - 0.5)*self.true_theta[idx]
-        # print(self.theta)
 
     def solve(self):
         self.theta_his = [self.theta]
@@ -132,7 +205,9 @@ class ImitationLearning:
                                                 costate_traj_opt=traj['costate_traj_opt'],
                                                 auxvar_value = self.theta)
                 self.lqr_solver.setDyn(dynF=aux_sys['dynF'], dynG=aux_sys['dynG'], dynE=aux_sys['dynE'])
-                self.lqr_solver.setPathCost(Hxx=aux_sys['Hxx'], Huu=aux_sys['Huu'], Hxu=aux_sys['Hxu'], Hux=aux_sys['Hux'],
+                # Add small regularization to each element of Huu
+                Huu_reg = [h + 1e-6*np.eye(h.shape[0]) if isinstance(h, np.ndarray) else h for h in aux_sys['Huu']]
+                self.lqr_solver.setPathCost(Hxx=aux_sys['Hxx'], Huu=Huu_reg, Hxu=aux_sys['Hxu'], Hux=aux_sys['Hux'],
                                             Hxe=aux_sys['Hxe'], Hue=aux_sys['Hue'])
                 self.lqr_solver.setFinalCost(hxx=aux_sys['hxx'], hxe=aux_sys['hxe'])
                 aux_sol = self.lqr_solver.lqrSolver(numpy.zeros((self.sysoc.n_state, self.sysoc.n_auxvar)), self.demo_horizon)
@@ -143,20 +218,24 @@ class ImitationLearning:
 
                 dxdtheta_t = dxdtheta_traj[idx]
                 dudtheta_t = dudtheta_traj[idx]
-                dxidtheta_t = dxdtheta_t
+                if self.project == 'dog':
+                    dxidtheta_t = dxdtheta_t[:2]
+                if self.project == 'quad':
+                    dxidtheta_t = dxdtheta_t[:2]
                 # dxidtheta_t = np.vstack((dxdtheta_t, dudtheta_t))
 
                 # --------------------------- Loss function, dLdXi ---------------------------------------- 
                 state_traj = traj['state_traj_opt']
                 control_traj = traj['control_traj_opt']
 
-                # xi = SX.sym("xi", self.dynsys.X.shape[0]+self.dynsys.U.shape[0])
-                # demo_traj = np.hstack((self.demo_state_traj[idx], self.demo_control_traj[idx]))
-                # current_traj = np.hstack((state_traj[idx], control_traj[idx]))
-
-                xi = SX.sym("xi", self.dynsys.X.shape[0])
-                demo_traj = (self.demo_state_traj[idx])
-                current_traj = (state_traj[idx])
+                if self.project == 'dog':
+                    xi = SX.sym("xi", self.dynsys.X.shape[0])[:2]
+                    demo_traj = self.demo_state_traj[idx][:2]
+                    current_traj = state_traj[idx][:2]
+                if self.project == 'quad':
+                    xi = SX.sym("xi", self.dynsys.X.shape[0])[:2]
+                    demo_traj = self.demo_state_traj[idx][:2]
+                    current_traj = state_traj[idx][:2]
 
                 loss = demo_traj - xi
                 dLdXi = jacobian(loss, xi)
@@ -170,9 +249,6 @@ class ImitationLearning:
                 # if self.plotTrajFlag:
                 #     self.plotTraj(state_traj, control_traj)
 
-                # evaluate the loss
-                dldx_traj = state_traj - self.demo_state_traj
-                dldu_traj = control_traj - self.demo_control_traj
                 
                 # --------------------------- Chain rule ----------------------------------------
                 dLdtheta = np.matmul(dLdXiNow, dxidtheta_t)
@@ -199,9 +275,10 @@ class ImitationLearning:
 
                 self.P_prev = updateTheta.P
                 self.theta = updateTheta.theta
+                # if self.project == '1':
                 for ndata in range(len(self.theta)-len(self.pred_init)):
-                    if self.theta[ndata] < 1e-3:
-                        self.theta[ndata] = 1e-3
+                    if self.theta[ndata] < 1e-8:
+                        self.theta[ndata] = 1e-8
 
                 self.data_time += [time.time()-data_start_time]
                 self.x_his += [state_traj]
@@ -209,19 +286,14 @@ class ImitationLearning:
                 self.theta_his += [self.theta]
                 if self.printFlag:
                     print(time.time()-data_start_time)
-                # fig, axs = plt.subplots()
-                # axs.plot(self.demo_state_traj_original[idx,0],self.demo_state_traj_original[idx,1],'bo')
-                # axs.plot(self.demo_state_traj_original[-1,0],self.demo_state_traj_original[-1,1],'ro')
-                # axs.plot(self.theta[-3],self.theta[-2],'r*')
-                # axs.set_xlim([-10,10])
-                # axs.set_ylim([-10,10])
-                # plt.show()
+
                 # self.plotTraj(state_traj, control_traj)
+                # self.plot_demo(idx)
 
                 
 
         # --------------------------- learned full iter ---------------------------
-        traj = self.sysoc.ocSolver(ini_state=self.init_state, horizon=self.demo_horizon, auxvar_value = self.theta)
+        traj = self.sysoc.ocSolverWithRef(ini_state=self.init_state, horizon=self.demo_horizon, auxvar_value = self.theta, ref = self.ref_traj)
         state_traj = traj['state_traj_opt']
         control_traj = traj['control_traj_opt']
         self.evaluateLoss(state_traj, control_traj)
@@ -242,8 +314,8 @@ class ImitationLearning:
         Loss = 0
         loss_his = []
         for jdx in range(self.demo_horizon):
-            each_traj_t = np.hstack((state_traj[jdx], control_traj[jdx]))
-            demo_traj_t = np.hstack((self.demo_state_traj_original[jdx], self.demo_control_traj[jdx]))
+            each_traj_t = np.hstack((state_traj[jdx,:2]))
+            demo_traj_t = np.hstack((self.demo_state_traj[jdx,:2]))
             lossNorm = norm_2(each_traj_t-demo_traj_t)**2
             loss_his += [lossNorm]
             Loss += lossNorm
@@ -257,8 +329,7 @@ class ImitationLearning:
         sio.savemat("results/result_" + self.project + ".mat", {'Loss': self.Loss_his,
                                                     'theta_error': self.theta_error, 'goal_error': self.goal_error,
                                                     'true_theta': self.true_theta, 'theta': self.theta_his,
-                                                    'demo_state': self.demo_state_traj_original,
-                                                    'demo_state_noise': self.demo_state_traj, 'demo_control': self.demo_control_traj,
+                                                    'demo_state_noise': self.demo_state_traj,
                                                     'state': self.x_his, 'control': self.u_his,
                                                     'data_time': self.data_time, 'gradient_time': self.gradient_time,
                                                     'ekf_time': self.ekf_time})
@@ -273,7 +344,6 @@ class ImitationLearning:
         axs.set_xlabel("Data")
         axs.set_ylabel("Goal Error")
         axs.set_title(self.project)
-        plt.show()
 
         fig, axs = plt.subplots()
         axs.plot(self.Loss_his)
@@ -303,132 +373,61 @@ class ImitationLearning:
         # axs[-1].set_xlabel("Iteration")
         # axs[0].set_title("State Trajectory")
 
-        plt.rcParams['font.size'] = 24
-        plt.rcParams["figure.figsize"] = (10,8)
+        
         iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(3,1)
-        for idx in range(3):
-            axs[idx].plot(iter, state_traj[:,idx],'b',linewidth=3)
-            axs[idx].plot(iter, self.demo_state_traj[:,idx],'g',linewidth=2)
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'r--',linewidth=2)
+        fig, axs = plt.subplots(2,1)
+        for idx in range(2):
+            axs[idx].plot(iter, state_traj[:,idx],'b')
+            axs[idx].plot(iter, self.demo_state_traj[:,idx],'r--')
+            # if self.project == 'quad':
+            #     axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'y--')
             # axs[idx].set_ylabel("x"+str(idx+1))
         axs[0].set_ylabel("$x$")
         axs[1].set_ylabel("$y$")
-        axs[2].set_ylabel("$z$")
-        axs[0].set_xticklabels([])
-        axs[1].set_xticklabels([])
         axs[-1].set_xlabel("$t$")
-        fig.align_ylabels(axs)
-        # axs[0].set_title("State Trajectory")
-        # axs[0].legend(['Predicted State','Observed State','True State'])
+        axs[0].set_title("State Trajectory")
+        axs[0].legend(['Predicted State','Observed State'])
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(3,1)
-        for idx in range(3):
-            axs[idx].plot(iter, state_traj[:,idx+3],'b',linewidth=3)
-            axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'g',linewidth=2)
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+3],'r--',linewidth=2)
-            # axs[idx].set_ylabel("x"+str(idx+4))
-        axs[0].set_ylabel("$v_x$")
-        axs[1].set_ylabel("$v_y$")
-        axs[2].set_ylabel("$v_z$")
-        axs[0].set_xticklabels([])
-        axs[1].set_xticklabels([])
-        axs[-1].set_xlabel("$t$")
-        fig.align_ylabels(axs)
+        # iter = [*range(len(state_traj))]
+        # fig, axs = plt.subplots(3,1)
+        # for idx in range(3):
+        #     axs[idx].plot(iter, state_traj[:,idx+3],'b')
+        #     axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'g')
+        #     axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'r--')
+        #     # axs[idx].set_ylabel("x"+str(idx+4))
+        # axs[0].set_ylabel("$v_x$")
+        # axs[1].set_ylabel("$v_y$")
+        # axs[2].set_ylabel("$v_yaw$")
+        # axs[-1].set_xlabel("$t$")
         # axs[0].set_title("State Trajectory")
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(4,1)
-        for idx in range(4):
-            axs[idx].plot(iter, state_traj[:,idx+6],'b',linewidth=3)
-            axs[idx].plot(iter, self.demo_state_traj[:,idx+6],'g',linewidth=2)
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+6],'r--',linewidth=2)
-            # axs[idx].set_ylabel("x"+str(idx+7))
-            if idx > 0:
-                axs[idx].set_ylim([-2,2])
-            else:
-                axs[idx].set_ylim([-1,3])
-        axs[0].set_ylabel("$q_1$")
-        axs[1].set_ylabel("$q_2$")
-        axs[2].set_ylabel("$q_3$")
-        axs[3].set_ylabel("$q_4$")
-        axs[0].set_xticklabels([])
-        axs[1].set_xticklabels([])
-        axs[2].set_xticklabels([])
-        axs[-1].set_xlabel("$t$")
-        fig.align_ylabels(axs)
-        # axs[0].set_title("State Trajectory")
+        # fig, axs = plt.subplots(1,1)
+        # axs.plot(self.demo_state_traj[:,0], self.demo_state_traj[:,1], 'r--')
+        # axs.set_xlabel("$x$")
+        # axs.set_ylabel("$y$")
+        # axs.set_title("State Trajectory")
 
+        plt.show()
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(4,1)
-        axs[0].set_visible(False)
-        for idx in range(3):
-            axs[idx+1].plot(iter, state_traj[:,idx+10],'b',label='Predicted State',linewidth=3)
-            axs[idx+1].plot(iter, self.demo_state_traj[:,idx+10],'g',label='Observed State',linewidth=2)
-            axs[idx+1].plot(iter, self.demo_state_traj_original[:,idx+10],'r--',label='True State',linewidth=2)
-            # axs[idx].set_ylabel("x"+str(idx+11))
-            axs[idx].set_ylim([-2,2])
-        axs[1].set_ylabel("$\omega_x$")
-        axs[2].set_ylabel("$\omega_y$")
-        axs[3].set_ylabel("$\omega_z$")
-        axs[1].set_xticklabels([])
-        axs[2].set_xticklabels([])
-        axs[-1].set_xlabel("$t$")
-        fig.align_ylabels(axs)
-        # axs[0].set_title("State Trajectory")
-        # plt.legend(bbox_to_anchor=(0.5, 5), loc='upper center')
-        # axs[1].legend(['Predicted State','Observed State','True State'])
-
-        fig, axs = plt.subplots(3,1)
-        axs[0].set_visible(False)
-        axs[1].plot(iter, state_traj[:,6],'b',label='Predicted State',linewidth=3)
-        axs[1].plot(iter, self.demo_state_traj[:,6],'g',label='Observed State',linewidth=2)
-        axs[1].plot(iter, self.demo_state_traj_original[:,6],'r--',label='True State',linewidth=2)
-        axs[2].plot(iter, state_traj[:,10],'b',label='Predicted State',linewidth=3)
-        axs[2].plot(iter, self.demo_state_traj[:,10],'g',label='Observed State',linewidth=2)
-        axs[2].plot(iter, self.demo_state_traj_original[:,10],'r--',label='True State',linewidth=2)
-        
-        # axs[idx].set_ylabel("x"+str(idx+11))
-        axs[1].set_ylim([-1,3])
-        axs[2].set_ylim([-2,2])
-        axs[1].set_ylabel("$q_1$")
-        axs[2].set_ylabel("$\omega_x$")
-        axs[1].set_xticklabels([])
-        axs[2].set_xticklabels([])
-        axs[-1].set_xlabel("$t$")
-        fig.align_ylabels(axs)
-        plt.legend(bbox_to_anchor=(0.5, 3.5), loc='upper center')
-
-
-
-        iter = [*range(len(control_traj))]
-        if len(control_traj[0]) == 1:
-            fig, axs = plt.subplots()
-            axs.plot(iter, control_traj,'b')
-            axs.plot(iter, self.demo_control_traj,'r')
-            axs.set_ylabel("u")
-            axs.set_xlabel("Iteration")
-            axs.set_title("Control Trajectory")
-        else:
-            fig, axs = plt.subplots(len(control_traj[0]),1)
-            for idx in range(len(control_traj[0])):
-                axs[idx].plot(iter, control_traj[:,idx],'b')
-                axs[idx].plot(iter, self.demo_control_traj[:,idx],'r')
-                axs[idx].set_ylabel("x"+str(idx+1))
-            axs[-1].set_xlabel("Iteration")
-            axs[0].set_title("Control Trajectory")
+    def plot_demo(self, iter):
+        fig, axs = plt.subplots(1,1)
+        axs.plot(self.demo_state_traj[:iter,0], self.demo_state_traj[:iter,1], 'b')
+        axs.plot(self.theta[-2], self.theta[-1], 'r*')
+        axs.set_title("State Trajectory")
+        axs.set_xlim(-4, 4)
+        axs.set_ylim(-3, 3)
         plt.show()
 
 
-
-
 class ImitationLearningNN:
-    def __init__(self, project="", init_state=None, true_theta=None, dynsys=None, trueSys=None, dt=None, horizon=None, noise=None, pred_init=None , saveFlag=False):
+    def __init__(self, project="dog", init_state=None, true_theta=None, dynsys=None, dt=None, horizon=None, pred_init=None , saveFlag=False):
 
+        if project == 'dog':
+            self.start_time = 9
+        elif project == 'quad':
+            self.start_time = 11
         self.saveFlag = saveFlag
-        self.plotTrajFlag = False
+        self.plotTrajFlag = True
         self.printFlag = True
         if saveFlag:
             if not os.path.exists("results/"):
@@ -437,36 +436,83 @@ class ImitationLearningNN:
         # ------------------------------ set up system ------------------------------
         self.project = project
         self.dynsys = dynsys
-        self.trueSys = trueSys
-        self.num_dyn_auxvar = dynsys.dyn_auxvar.shape[0]
-        self.num_cost_auxvar = dynsys.cost_auxvar.shape[0]
         self.dt = dt
         self.demo_horizon = horizon
         self.init_state = init_state
-        self.noise = noise
         self.pred_init = pred_init
         
         # ------------------------------ get demos data ------------------------------
-        self.true_theta = true_theta
-        self.demoSys = PDP.OCSys()
-        self.demoSys.setAuxvarVariable(vertcat(self.trueSys.dyn_auxvar, self.trueSys.cost_auxvar))
-        self.demoSys.setControlVariable(self.trueSys.U)
-        self.demoSys.setStateVariable(self.trueSys.X)
-        self.truedyn = self.trueSys.X + self.dt * self.trueSys.f
-        self.demoSys.setDyn(self.truedyn)
-        self.demoSys.setPathCost(self.trueSys.path_cost)
-        self.demoSys.setFinalCost(self.trueSys.final_cost)
-
-        self.demo_traj = self.demoSys.ocSolver(ini_state=init_state, horizon=horizon, auxvar_value = [])
         
 
-        if self.printFlag:
-            print('True theta', self.true_theta)
+        if project == 'dog':
+            # load csv file
+            with open('experiment/dog_data.csv', 'r') as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=',')
+                data = []
+                for row in csv_reader:
+                    # Convert string values to float
+                    data.append([float(val) for val in row])
+                self.demo_traj = np.array(data)
+            self.demo_traj[:,0] = self.demo_traj[:,0] - self.demo_traj[0, 0]
+            
+            # Filter data for specific time intervals
+            mask = (self.demo_traj[:,0] >= self.start_time) & (self.demo_traj[:,0] <= self.start_time + self.dt*self.demo_horizon)
+            filtered_indices = np.where(mask)[0]
+            # Get samples at dt=0.1 intervals
+
+            time_points = np.arange(self.start_time, self.start_time + self.demo_horizon*self.dt + 0.1, self.dt)
+            sampled_indices = []
+            for t in time_points:
+                # Find the closest time point in the data
+                idx = np.abs(self.demo_traj[filtered_indices, 0] - t).argmin()
+                sampled_indices.append(filtered_indices[idx])
+            
+            self.demo_traj = self.demo_traj[sampled_indices]
+            self.demo_traj = self.demo_traj[:(self.demo_horizon+1),:]
+            
+            self.demo_state_traj = np.column_stack((self.demo_traj[:,1], self.demo_traj[:,2], self.demo_traj[:,6]))
+
+        # if project == 'quad':
+        #     data = sio.loadmat('experiment/quad_demos.mat')
+        #     self.demo_state_traj_original = data['trajectories']['state_traj_opt'][0][0]
+        #     self.demo_state_traj = data['trajectories']['state_traj_opt'][0][0]
+        if project == 'quad':
+        #     # load csv file
+            with open('experiment/quad_data.csv', 'r') as csvfile:
+                csv_reader = csv.reader(csvfile, delimiter=',')
+                data = []
+                for row in csv_reader:
+                    # Convert string values to float
+                    data.append([float(val) for val in row])
+                self.demo_traj = np.array(data)
+            self.demo_traj[:,0] = self.demo_traj[:,0] - self.demo_traj[0, 0]
+            
+            # Filter data for specific time intervals
+            mask = (self.demo_traj[:,0] >= self.start_time) & (self.demo_traj[:,0] <= self.start_time + self.dt*self.demo_horizon)
+            filtered_indices = np.where(mask)[0]
+            # Get samples at dt=0.1 intervals
+
+            time_points = np.arange(self.start_time, self.start_time + self.demo_horizon*self.dt + 0.1, self.dt)
+            sampled_indices = []
+            for t in time_points:
+                # Find the closest time point in the data
+                idx = np.abs(self.demo_traj[filtered_indices, 0] - t).argmin()
+                sampled_indices.append(filtered_indices[idx])
+            
+            self.demo_traj = self.demo_traj[sampled_indices]
+            self.demo_traj = self.demo_traj[:(self.demo_horizon+1),:]
+            
+            self.demo_state_traj = np.column_stack((self.demo_traj[:,1], self.demo_traj[:,2], self.demo_traj[:,6]))
+            self.init_state[0] = self.demo_state_traj[0,0]
+            self.init_state[1] = self.demo_state_traj[0,1]
 
         # ------------------------------ initialize Classes ------------------------------
         self.sysoc = PDP.OCSys()
-        self.sysoc.setAuxvarVariable(vertcat(self.dynsys.dyn_auxvar, self.dynsys.cost_auxvar))
-        self.sysoc.setControlVariable(self.dynsys.U) #, control_lb=[2.4,2.4,2.4,2.4], control_ub=[2.6,2.6,2.6,2.6]
+        if project == 'dog':
+            self.sysoc.setAuxvarVariable(self.dynsys.cost_auxvar)
+        if project == 'quad':
+            self.sysoc.setAuxvarVariable(vertcat(self.dynsys.dyn_auxvar, self.dynsys.cost_auxvar))
+        self.sysoc.setControlVariable(self.dynsys.U)
         self.sysoc.setStateVariable(self.dynsys.X)
         self.dyn = self.dynsys.X + self.dt * self.dynsys.f
         self.sysoc.setDyn(self.dyn)
@@ -475,13 +521,44 @@ class ImitationLearningNN:
         self.sysoc.diffPMP()
         self.lqr_solver = PDP.LQR()
 
+        # if project == 'dog':
+        self.true_theta = true_theta
+        self.theta = np.zeros(len(self.true_theta))
+        if project == 'dog':
+            self.true_theta = np.hstack((self.true_theta, self.demo_state_traj[-1, :2]))
+        if project == 'quad':
+            self.true_theta = np.hstack((self.true_theta, self.demo_state_traj[-1, :3]))
+
+
+        self.sigma = 0.4
+        if project == 'dog':
+            self.theta = np.hstack((self.theta, self.pred_init))
+        if project == 'quad':
+            self.theta = np.hstack((self.theta, self.demo_state_traj[0, :3]))
+
+        for idx in range(len(self.true_theta)-len(self.pred_init)):
+            self.theta[idx] = self.true_theta[idx] + self.sigma * (np.random.random() - 0.5)*self.true_theta[idx]
+        print('true theta', self.true_theta)
+        print('Initial theta', self.theta)
+            
+        # if project == '3':
+        #     self.true_theta = true_theta
+        #     self.theta = np.array(true_theta)
+        #     self.theta[-2] = self.pred_init[0]
+        #     self.theta[-1] = self.pred_init[1]
+        
+        print(self.theta)
+        # print(self.demo_state_traj)
+        # print('True theta', self.true_theta)
+
         # ------------------------------ initilize tunable parameter ------------------------------
-        self.sigma = 0.5
+
 
         self.loss = 0
-        self.demo_state_traj_original = self.demo_traj['state_traj_opt']
-        self.demo_control_traj = self.demo_traj['control_traj_opt']
-        self.demo_state_traj = self.demo_state_traj_original + np.random.normal(0, noise, (self.demo_horizon+1,len(init_state)))
+        self.dp = np.zeros(self.theta.shape)
+        
+        
+        
         self.ref_traj = list()
 
         # ------------------------------ other setup ------------------------------
@@ -495,10 +572,6 @@ class ImitationLearningNN:
         self.x_his = []
         self.u_his = []
 
-
-    def generate_traj(self):
-        return self.demo_traj
-
     # def set_sigma(self, sigma):
     #     self.sigma = sigma
     #     self.theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
@@ -511,14 +584,11 @@ class ImitationLearningNN:
         self.Q_prev = Q
         self.R = R
 
-    def initialize_parameter(self):
-        self.theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
-    
     def initialize_nn_parameter(self, theta):
         self.theta = theta
-        obj_theta = self.true_theta[-len(self.pred_init)-4:-len(self.pred_init)] 
-        for idx in range(len(self.true_theta)-len(self.pred_init)-4,len(self.true_theta)-len(self.pred_init)):
-            obj_theta[idx-(len(self.true_theta)-len(self.pred_init)-4)] = self.true_theta[idx] + self.sigma * (np.random.random() - 0.5) * self.true_theta[idx]
+        obj_theta = self.true_theta[-len(self.pred_init)-5:-len(self.pred_init)] 
+        for idx in range(len(self.true_theta)-len(self.pred_init)-5,len(self.true_theta)-len(self.pred_init)):
+            obj_theta[idx-(len(self.true_theta)-len(self.pred_init)-5)] = self.true_theta[idx] + self.sigma * (np.random.random() - 0.5)
         self.theta = np.hstack((self.theta, obj_theta, self.pred_init))
 
         print(self.theta)
@@ -526,10 +596,10 @@ class ImitationLearningNN:
         self.dp = np.zeros(self.theta.shape)
 
     def solve(self):
+        print(self.theta)
         self.theta_his = [self.theta]
-        if self.printFlag:
-            print('theta = ', self.theta)
-        self.ref_traj = self.demo_traj
+        # if self.printFlag:
+        #     print('theta = ', self.theta)
         for iter in range(self.iteration):
             for idx in range(self.demo_horizon):
                 data_start_time = time.time()
@@ -539,7 +609,7 @@ class ImitationLearningNN:
                 else:
                     traj = self.sysoc.ocSolverWithRef(ini_state=self.init_state, horizon=self.demo_horizon, auxvar_value = self.theta, ref = self.ref_traj)
                 
-                self.ref_traj = copy.copy(traj)
+                self.ref_traj = traj
 
                 # --------------------------- Gradient generator, dXidtheta ---------------------------------------- 
                 gradient_start_time = time.time()
@@ -548,7 +618,9 @@ class ImitationLearningNN:
                                                 costate_traj_opt=traj['costate_traj_opt'],
                                                 auxvar_value = self.theta)
                 self.lqr_solver.setDyn(dynF=aux_sys['dynF'], dynG=aux_sys['dynG'], dynE=aux_sys['dynE'])
-                self.lqr_solver.setPathCost(Hxx=aux_sys['Hxx'], Huu=aux_sys['Huu'], Hxu=aux_sys['Hxu'], Hux=aux_sys['Hux'],
+                # Add small regularization to each element of Huu
+                Huu_reg = [h + 1e-6*np.eye(h.shape[0]) if isinstance(h, np.ndarray) else h for h in aux_sys['Huu']]
+                self.lqr_solver.setPathCost(Hxx=aux_sys['Hxx'], Huu=Huu_reg, Hxu=aux_sys['Hxu'], Hux=aux_sys['Hux'],
                                             Hxe=aux_sys['Hxe'], Hue=aux_sys['Hue'])
                 self.lqr_solver.setFinalCost(hxx=aux_sys['hxx'], hxe=aux_sys['hxe'])
                 aux_sol = self.lqr_solver.lqrSolver(numpy.zeros((self.sysoc.n_state, self.sysoc.n_auxvar)), self.demo_horizon)
@@ -559,20 +631,24 @@ class ImitationLearningNN:
 
                 dxdtheta_t = dxdtheta_traj[idx]
                 dudtheta_t = dudtheta_traj[idx]
-                dxidtheta_t = dxdtheta_t
+                if self.project == 'dog':
+                    dxidtheta_t = dxdtheta_t[:2]
+                if self.project == 'quad':
+                    dxidtheta_t = dxdtheta_t[:2]
                 # dxidtheta_t = np.vstack((dxdtheta_t, dudtheta_t))
 
                 # --------------------------- Loss function, dLdXi ---------------------------------------- 
                 state_traj = traj['state_traj_opt']
                 control_traj = traj['control_traj_opt']
 
-                # xi = SX.sym("xi", self.dynsys.X.shape[0]+self.dynsys.U.shape[0])
-                # demo_traj = np.hstack((self.demo_state_traj[idx], self.demo_control_traj[idx]))
-                # current_traj = np.hstack((state_traj[idx], control_traj[idx]))
-
-                xi = SX.sym("xi", self.dynsys.X.shape[0])
-                demo_traj = (self.demo_state_traj[idx])
-                current_traj = (state_traj[idx])
+                if self.project == 'dog':
+                    xi = SX.sym("xi", self.dynsys.X.shape[0])[:2]
+                    demo_traj = self.demo_state_traj[idx][:2]
+                    current_traj = state_traj[idx][:2]
+                if self.project == 'quad':
+                    xi = SX.sym("xi", self.dynsys.X.shape[0])[:2]
+                    demo_traj = self.demo_state_traj[idx][:2]
+                    current_traj = state_traj[idx][:2]
 
                 loss = demo_traj - xi
                 dLdXi = jacobian(loss, xi)
@@ -586,9 +662,6 @@ class ImitationLearningNN:
                 # if self.plotTrajFlag:
                 #     self.plotTraj(state_traj, control_traj)
 
-                # evaluate the loss
-                dldx_traj = state_traj - self.demo_state_traj
-                dldu_traj = control_traj - self.demo_control_traj
                 
                 # --------------------------- Chain rule ----------------------------------------
                 dLdtheta = np.matmul(dLdXiNow, dxidtheta_t)
@@ -605,7 +678,6 @@ class ImitationLearningNN:
                         print('Data = ', iter*self.demo_horizon+idx, 'Loss = ', self.Loss_his[-1])
                         # print('theta = ', updateTheta.theta)
                         # print('Loss = ', self.Loss_his[-1])
-                        # print(state_traj[-1])
                         print('L goal = ', np.asarray(norm_2(self.theta[-len(self.pred_init):]-self.true_theta[-len(self.pred_init):])**2)[0,0])
                     else:
                         if(iter*self.demo_horizon+idx) % 100 == 0:
@@ -616,7 +688,8 @@ class ImitationLearningNN:
 
                 self.P_prev = updateTheta.P
                 self.theta = updateTheta.theta
-                for ndata in range(len(self.theta)-len(self.pred_init)-5,len(self.theta)-len(self.pred_init)):
+                # if self.project == '1':
+                for ndata in range(len(self.theta)-len(self.pred_init)):
                     if self.theta[ndata] < 1e-8:
                         self.theta[ndata] = 1e-8
 
@@ -626,21 +699,11 @@ class ImitationLearningNN:
                 self.theta_his += [self.theta]
                 if self.printFlag:
                     print(time.time()-data_start_time)
-                # fig, axs = plt.subplots()
-                # axs.plot(self.demo_state_traj_original[idx,0],self.demo_state_traj_original[idx,1],'bo')
-                # axs.plot(self.demo_state_traj_original[-1,0],self.demo_state_traj_original[-1,1],'ro')
-                # axs.plot(self.theta[-3],self.theta[-2],'r*')
-                # axs.set_xlim([-10,10])
-                # axs.set_ylim([-10,10])
-                # plt.show()
+
                 # self.plotTraj(state_traj, control_traj)
+                # self.plot_demo(idx)
 
-                if math.isnan(self.goal_error[-1]):
-                    break
-
-            if math.isnan(self.goal_error[-1]):
-                break
-
+                
 
         # --------------------------- learned full iter ---------------------------
         traj = self.sysoc.ocSolverWithRef(ini_state=self.init_state, horizon=self.demo_horizon, auxvar_value = self.theta, ref = self.ref_traj)
@@ -664,27 +727,22 @@ class ImitationLearningNN:
         Loss = 0
         loss_his = []
         for jdx in range(self.demo_horizon):
-            # each_traj_t = np.hstack((state_traj[jdx], control_traj[jdx]))
-            # demo_traj_t = np.hstack((self.demo_state_traj_original[jdx], self.demo_control_traj[jdx]))
-            each_traj_t = state_traj[jdx]
-            demo_traj_t = self.demo_state_traj_original[jdx]
+            each_traj_t = np.hstack((state_traj[jdx,:2]))
+            demo_traj_t = np.hstack((self.demo_state_traj[jdx,:2]))
             lossNorm = norm_2(each_traj_t-demo_traj_t)**2
-            # loss_his += [lossNorm]
+            loss_his += [lossNorm]
             Loss += lossNorm
         self.Loss_his += [np.asarray(Loss)[0,0]]
 
         # self.theta_error += [np.asarray(norm_2(self.theta[:-len(self.pred_init)]-self.true_theta[:-len(self.pred_init)])**2)[0,0]]
         self.goal_error += [np.asarray(norm_2(self.theta[-len(self.pred_init):]-self.true_theta[-len(self.pred_init):])**2)[0,0]]
-        # self.goal_error += [np.asarray(norm_2(state_traj[-1]-self.true_theta[-len(self.pred_init):])**2)[0,0]]
-        # print('state error: ', [np.asarray(norm_2(state_traj[-1]-self.true_theta[-len(self.pred_init):])**2)[0,0]])
 
 
     def saveAll(self):
-        sio.savemat("results/nn_result_" + self.project + ".mat", {'Loss': self.Loss_his,
+        sio.savemat("results/result_" + self.project + ".mat", {'Loss': self.Loss_his,
                                                     'theta_error': self.theta_error, 'goal_error': self.goal_error,
                                                     'true_theta': self.true_theta, 'theta': self.theta_his,
-                                                    'demo_state': self.demo_state_traj_original,
-                                                    'demo_state_noise': self.demo_state_traj, 'demo_control': self.demo_control_traj,
+                                                    'demo_state_noise': self.demo_state_traj,
                                                     'state': self.x_his, 'control': self.u_his,
                                                     'data_time': self.data_time, 'gradient_time': self.gradient_time,
                                                     'ekf_time': self.ekf_time})
@@ -696,18 +754,22 @@ class ImitationLearningNN:
     def plotLoss(self):
         fig, axs = plt.subplots()
         axs.plot(self.goal_error)
-        axs.set_title('Prediction error of goal state')
-        axs.set_xlabel('$t$')
-        axs.set_ylabel('Error')
-        # plt.show()
+        axs.set_xlabel("Data")
+        axs.set_ylabel("Goal Error")
+        axs.set_title(self.project)
 
         fig, axs = plt.subplots()
         axs.plot(self.Loss_his)
-        # plt.yscale("log")
-        axs.set_title('Trajectory loss')
-        axs.set_xlabel('$t$')
-        axs.set_ylabel('Loss')
+        plt.yscale("log")
+        axs.set_xlabel("Data")
+        axs.set_ylabel("Loss")
+        axs.set_title(self.project)
 
+        fig, axs = plt.subplots()
+        axs.plot(self.theta_error)
+        axs.set_xlabel("Data")
+        axs.set_ylabel("Theta Error")
+        axs.set_title(self.project)
         plt.show()
 
         
@@ -724,80 +786,47 @@ class ImitationLearningNN:
         # axs[-1].set_xlabel("Iteration")
         # axs[0].set_title("State Trajectory")
 
+        
         iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(3,1)
-        for idx in range(3):
+        fig, axs = plt.subplots(2,1)
+        for idx in range(2):
             axs[idx].plot(iter, state_traj[:,idx],'b')
-            axs[idx].plot(iter, self.demo_state_traj[:,idx],'g')
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'r--')
+            axs[idx].plot(iter, self.demo_state_traj[:,idx],'r--')
+            # if self.project == 'quad':
+            #     axs[idx].plot(iter, self.demo_state_traj_original[:,idx],'y--')
             # axs[idx].set_ylabel("x"+str(idx+1))
         axs[0].set_ylabel("$x$")
         axs[1].set_ylabel("$y$")
-        axs[2].set_ylabel("$z$")
         axs[-1].set_xlabel("$t$")
         axs[0].set_title("State Trajectory")
-        axs[0].legend(['Predicted State','Observed State','True State'])
+        axs[0].legend(['Predicted State','Observed State'])
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(3,1)
-        for idx in range(3):
-            axs[idx].plot(iter, state_traj[:,idx+3],'b')
-            axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'g')
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+3],'r--')
-            # axs[idx].set_ylabel("x"+str(idx+4))
-        axs[0].set_ylabel("$v_x$")
-        axs[1].set_ylabel("$v_y$")
-        axs[2].set_ylabel("$v_z$")
-        axs[-1].set_xlabel("$t$")
-        axs[0].set_title("State Trajectory")
+        # iter = [*range(len(state_traj))]
+        # fig, axs = plt.subplots(3,1)
+        # for idx in range(3):
+        #     axs[idx].plot(iter, state_traj[:,idx+3],'b')
+        #     axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'g')
+        #     axs[idx].plot(iter, self.demo_state_traj[:,idx+3],'r--')
+        #     # axs[idx].set_ylabel("x"+str(idx+4))
+        # axs[0].set_ylabel("$v_x$")
+        # axs[1].set_ylabel("$v_y$")
+        # axs[2].set_ylabel("$v_yaw$")
+        # axs[-1].set_xlabel("$t$")
+        # axs[0].set_title("State Trajectory")
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(4,1)
-        for idx in range(4):
-            axs[idx].plot(iter, state_traj[:,idx+6],'b')
-            axs[idx].plot(iter, self.demo_state_traj[:,idx+6],'g')
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+6],'r--')
-            # axs[idx].set_ylabel("x"+str(idx+7))
-            if idx > 0:
-                axs[idx].set_ylim([-1,1])
-            else:
-                axs[idx].set_ylim([0,2])
-        axs[0].set_ylabel("$q_1$")
-        axs[1].set_ylabel("$q_2$")
-        axs[2].set_ylabel("$q_3$")
-        axs[3].set_ylabel("$q_4$")
-        axs[-1].set_xlabel("$t$")
-        axs[0].set_title("State Trajectory")
+        # fig, axs = plt.subplots(1,1)
+        # axs.plot(self.demo_state_traj[:,0], self.demo_state_traj[:,1], 'r--')
+        # axs.set_xlabel("$x$")
+        # axs.set_ylabel("$y$")
+        # axs.set_title("State Trajectory")
 
+        plt.show()
 
-        iter = [*range(len(state_traj))]
-        fig, axs = plt.subplots(3,1)
-        for idx in range(3):
-            axs[idx].plot(iter, state_traj[:,idx+10],'b')
-            axs[idx].plot(iter, self.demo_state_traj[:,idx+10],'g')
-            axs[idx].plot(iter, self.demo_state_traj_original[:,idx+10],'r--')
-            # axs[idx].set_ylabel("x"+str(idx+11))
-            axs[idx].set_ylim([-1,1])
-        axs[0].set_ylabel("$\omega_x$")
-        axs[1].set_ylabel("$\omega_y$")
-        axs[2].set_ylabel("$\omega_z$")
-        axs[-1].set_xlabel("$t$")
-        axs[0].set_title("State Trajectory")
-
-        iter = [*range(len(control_traj))]
-        if len(control_traj[0]) == 1:
-            fig, axs = plt.subplots()
-            axs.plot(iter, control_traj,'b')
-            axs.plot(iter, self.demo_control_traj,'r')
-            axs.set_ylabel("u")
-            axs.set_xlabel("Iteration")
-            axs.set_title("Control Trajectory")
-        else:
-            fig, axs = plt.subplots(len(control_traj[0]),1)
-            for idx in range(len(control_traj[0])):
-                axs[idx].plot(iter, control_traj[:,idx],'b')
-                axs[idx].plot(iter, self.demo_control_traj[:,idx],'r')
-                axs[idx].set_ylabel("x"+str(idx+1))
-            axs[-1].set_xlabel("Iteration")
-            axs[0].set_title("Control Trajectory")
+    def plot_demo(self, iter):
+        fig, axs = plt.subplots(1,1)
+        axs.plot(self.demo_state_traj[:iter,0], self.demo_state_traj[:iter,1], 'b')
+        axs.plot(self.theta[-2], self.theta[-1], 'r*')
+        axs.set_title("State Trajectory")
+        axs.set_xlim(-4, 4)
+        axs.set_ylim(-3, 3)
         plt.show()

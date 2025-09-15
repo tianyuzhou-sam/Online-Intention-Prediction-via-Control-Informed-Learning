@@ -56,7 +56,7 @@ init_state = np.hstack([init_position, init_velocity, transforms3d.quaternions.m
 
 system = ImitationLearningMPC.ImitationLearning(project, init_state, true_theta, dynsys, trueSys, dt, horizon, H, MemoryTime, noise, pred_init, saveFlag)
 system.set_iteration(1)
-system.set_sigma(0.1)
+# system.set_sigma(0.1)
 system.initialize_parameter()
 
 switch_time = [20,60]
@@ -72,8 +72,6 @@ for idx in range(0,11):
 for idx in range(11,14):
     P[idx,idx] = P[idx,idx]*1000
 Q = np.eye(24) * 0.
-for idx in range(11,14):
-    Q[idx,idx] = 0.0000000000
 # R = np.eye(13) * 0.001
 R = np.eye(13) * 0.0000001
 

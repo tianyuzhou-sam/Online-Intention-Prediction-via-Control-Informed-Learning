@@ -1,0 +1,55 @@
+import numpy as np
+from casadi import *
+import scipy.io as sio
+import os
+import sys
+import transforms3d
+sys.path.append(os.getcwd() + '/experiment')
+import ImitationLearning
+import Env
+
+
+case = 'dog'
+
+
+# ------------------------------ Set up parameters ------------------------------
+if case == 'dog':
+    init_state = [-2.86,-0.584,-1.00]
+    wx = 100
+    wv = 1
+    wd = 0.07
+    wu1 = 1
+    wu2 = 3
+    wu3 = 1
+    true_theta = np.hstack([wx, wv, wd, wu1, wu2, wu3])
+
+    dt = 0.1
+    horizon = 100
+
+    pred_init = init_state[:2]
+
+    goal = [2.728,-0.827]
+
+    goal_v_I = [0,0]
+
+    # ------------------------------ Set up dynamic system ------------------------------
+    project = str(case)
+    saveFlag = False
+    dynsys = Env.Dog()
+    dynsys.initDyn()
+    dynsys.initCost()
+                
+    system = ImitationLearning.ImitationLearning(project, init_state, true_theta, dynsys, dt, horizon, pred_init, saveFlag)
+    system.set_iteration(1)
+
+    # --------------------------- initilize EKF ----------------------------------------
+    P = np.eye(8) * 0.00000001
+    multiplier = 1000
+    P[6,6] = P[6,6]*multiplier
+    P[7,7] = P[7,7]*multiplier
+    Q = np.eye(8) * 0.
+    R = np.eye(2) * 0.000000001
+
+    system.initialize_EKF(P, Q, R)
+
+    system.solve()

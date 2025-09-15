@@ -4,12 +4,12 @@ import numpy as np
 import math
 
 
-iter = 1000
+iter = 100
 goal = list()
 loss = list()
 data_time = list()
 for i in range(iter):
-    data = sio.loadmat('results/time/partial/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/noise_0/result_' + str(i) + '.mat')
     
     if i == 0:
         goal = data['goal_error'][0]
