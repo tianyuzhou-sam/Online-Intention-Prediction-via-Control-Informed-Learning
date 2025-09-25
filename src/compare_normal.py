@@ -4,7 +4,7 @@ import numpy as np
 import math
 
 
-iter = 1000
+iter = 100
 goal = list()
 loss = list()
 data_time = list()
@@ -37,125 +37,107 @@ loss_std = np.std(loss, 0)
 loss_ub = loss_avg + 3*loss_std
 loss_lb = loss_avg - 3*loss_std
 
-goal01 = list()
-loss01 = list()
-data_time01 = list()
+goal02 = list()
+loss02 = list()
+data_time02 = list()
 for i in range(iter):
-    data = sio.loadmat('results/normal_01/result_' + str(i) + '.mat')
+    data = sio.loadmat('results/normal_02/result_' + str(i) + '.mat')
     
     if i == 0:
-        goal01 = data['goal_error'][0]
-        loss01 = data['Loss'][0]
-        data_time01 = data['data_time'][0].tolist()
+        goal02 = data['goal_error'][0]
+        loss02 = data['Loss'][0]
+        data_time02 = data['data_time'][0].tolist()
     elif not math.isnan(data['goal_error'][0][-1]):
-        goal01 = np.vstack((goal01, data['goal_error'][0]))
-        loss01 = np.vstack((loss01, data['Loss'][0]))
-        data_time01 = np.hstack((data_time01, data['data_time'][0].tolist()))
+        goal02 = np.vstack((goal02, data['goal_error'][0]))
+        loss02 = np.vstack((loss02, data['Loss'][0]))
+        data_time02 = np.hstack((data_time02, data['data_time'][0].tolist()))
     # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
     #     print(i)
     #     print(data['goal_error'][0][-1])
 
-goal_avg01 = np.mean(goal01, 0)
-goal_std01 = np.std(goal01, 0)
-goal_ub01 = goal_avg01 + 3*goal_std01
-goal_lb01 = goal_avg01 - 3*goal_std01
+goal_avg02 = np.mean(goal02, 0)
+goal_std02 = np.std(goal02, 0)
+goal_ub02 = goal_avg02 + 3*goal_std02
+goal_lb02 = goal_avg02 - 3*goal_std02
 
-loss_avg01 = np.mean(loss01, 0)
-loss_std01 = np.std(loss01, 0)
-loss_ub01 = loss_avg01 + 3*loss_std01
-loss_lb01 = loss_avg01 - 3*loss_std01
+loss_avg02 = np.mean(loss02, 0)
+loss_std02 = np.std(loss02, 0)
+loss_ub02 = loss_avg02 + 3*loss_std02
+loss_lb02 = loss_avg02 - 3*loss_std02
 
-goal1 = list()
-loss1 = list()
-data_time1 = list()
+goal05 = list()
+loss05 = list()
+data_time05 = list()
 for i in range(iter):
     data = sio.loadmat('results/normal_05/result_' + str(i) + '.mat')
     
     if i == 0:
-        goal1 = data['goal_error'][0]
-        loss1 = data['Loss'][0]
-        data_time1 = data['data_time'][0].tolist()
+        goal05 = data['goal_error'][0]
+        loss05 = data['Loss'][0]
+        data_time05 = data['data_time'][0].tolist()
     elif not math.isnan(data['goal_error'][0][-1]):
-        goal1 = np.vstack((goal1, data['goal_error'][0]))
-        loss1 = np.vstack((loss1, data['Loss'][0]))
-        data_time1 = np.hstack((data_time1, data['data_time'][0].tolist()))
+        goal05 = np.vstack((goal05, data['goal_error'][0]))
+        loss05 = np.vstack((loss05, data['Loss'][0]))
+        data_time05 = np.hstack((data_time05, data['data_time'][0].tolist()))
     # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 100:
     #     print(i)
     #     print(data['goal_error'][0][-1])
 
 
-goal_avg1 = np.mean(goal1, 0)
-goal_std1 = np.std(goal1, 0)
-goal_ub1 = goal_avg1 + 3*goal_std1
-goal_lb1 = goal_avg1 - 3*goal_std1
+goal_avg05 = np.mean(goal05, 0)
+goal_std05 = np.std(goal05, 0)
+goal_ub05 = goal_avg05 + 3*goal_std05
+goal_lb05 = goal_avg05 - 3*goal_std05
 
-loss_avg1 = np.mean(loss1, 0)
-loss_std1 = np.std(loss1, 0)
-loss_ub1 = loss_avg1 + 3*loss_std1
-loss_lb1 = loss_avg1 - 3*loss_std1
-
-goal2 = list()
-loss2 = list()
-data_time2 = list()
-for i in range(iter):
-    data = sio.loadmat('results/normal_1/result_' + str(i) + '.mat')
-    
-    if i == 0:
-        goal2 = data['goal_error'][0]
-        loss2 = data['Loss'][0]
-        data_time2 = data['data_time'][0].tolist()
-    elif not math.isnan(data['goal_error'][0][-1]):
-        goal2 = np.vstack((goal2, data['goal_error'][0]))
-        loss2 = np.vstack((loss2, data['Loss'][0]))
-        data_time2 = np.hstack((data_time2, data['data_time'][0].tolist()))
-    # if math.isnan(data['goal_error'][0][-1]) or data['Loss'][0][-1] > 1000:
-    #     print(i)
-    #     print(data['goal_error'][0][-1])
+loss_avg05 = np.mean(loss05, 0)
+loss_std05 = np.std(loss05, 0)
+loss_ub05 = loss_avg05 + 3*loss_std05
+loss_lb05 = loss_avg05 - 3*loss_std05
 
 
-goal_avg2 = np.mean(goal2, 0)
-goal_std2 = np.std(goal2, 0)
-goal_ub2 = goal_avg2 + 3*goal_std2
-goal_lb2 = goal_avg2 - 3*goal_std2
 
-loss_avg2 = np.mean(loss2, 0)
-loss_std2 = np.std(loss2, 0)
-loss_ub2 = loss_avg2 + 3*loss_std2
-loss_lb2 = loss_avg2 - 3*loss_std2
-
-plt.rcParams['font.size'] = 30
-plt.rcParams["figure.figsize"] = (10,8)
+plt.rcParams['font.size'] = 24
+plt.rcParams["legend.fontsize"] = 24
+plt.rcParams["figure.figsize"] = (6,5)
 fig, ax = plt.subplots()
-line_goal2, = ax.plot(goal_avg2, color='purple', linewidth=4)
-ax.fill_between(timestep, goal_lb2, goal_ub2, color='violet')
-line_goal1, = ax.plot(goal_avg1, color='r', linewidth=4)
-ax.fill_between(timestep, goal_lb1, goal_ub1, color='lightcoral', alpha=0.7)
-line_goal01, = ax.plot(goal_avg01, color='g', linewidth=4)
-ax.fill_between(timestep, goal_lb01, goal_ub01, color='lightgreen')
-line_goal, = ax.plot(goal_avg, color='b', linewidth=4)
+line_goal05, = ax.plot(goal_avg05, color='r', linewidth=5)
+ax.fill_between(timestep, goal_lb05, goal_ub05, color='lightcoral', alpha=0.7)
+line_goal02, = ax.plot(goal_avg02, color='g', linewidth=5)
+ax.fill_between(timestep, goal_lb02, goal_ub02, color='lightgreen')
+line_goal, = ax.plot(goal_avg, color='b', linewidth=5)
 ax.fill_between(timestep, goal_lb, goal_ub, color='lightskyblue')
-ax.legend([line_goal, line_goal01, line_goal1, line_goal2], ['$\sigma=0$','$\sigma=0.1$','$\sigma=0.5$','$\sigma=1$'])
+ax.legend([line_goal, line_goal02, line_goal05], ['$\sigma=0$','$\sigma=0.2$','$\sigma=0.5$'])
 # ax.set_title('Prediction error at different Gaussian noise level')
 ax.set_xlabel('$t$')
-ax.set_ylabel('Prediction error')
-ax.set_ylim([0,160])
+ax.set_ylabel('Prediction Loss')
+ax.set_ylim([0,140])
+ax.set_xlim(0, 80)
 # ax.set_yscale('log')
 
-fig, ax = plt.subplots()
-line_loss2, = ax.plot(loss_avg2, color='purple', linewidth=4)
-ax.fill_between(timestep, loss_lb2, loss_ub2, color='violet')
-line_loss1, = ax.plot(loss_avg1, color='r', linewidth=4)
-ax.fill_between(timestep, loss_lb1, loss_ub1, color='lightcoral', alpha=0.7)
-line_loss01, = ax.plot(loss_avg01, color='g', linewidth=4)
-ax.fill_between(timestep, loss_lb01, loss_ub01, color='lightgreen')
-line_loss, = ax.plot(loss_avg, color='b', linewidth=4)
-ax.fill_between(timestep, loss_lb, loss_ub, color='lightskyblue')
-ax.legend([line_loss, line_loss01, line_loss1, line_loss2], ['$\sigma=0$','$\sigma=0.1$','$\sigma=0.5$','$\sigma=1$'])
-ax.ticklabel_format(style='sci', axis='y', scilimits=(0, 0))
-ax.set_ylim([0,4000])
-# ax.set_title('Trajectory loss at different Gaussian noise level')
-ax.set_xlabel('$t$')
-ax.set_ylabel('Trajectory Loss')
-# ax.set_yscale('log')
+plt.tight_layout()
+plt.show()
 
+from matplotlib.ticker import MaxNLocator
+plt.rcParams["figure.figsize"] = (8,8)
+demo_state_noise = data['demo_state_noise']  # Shape: (101, 13)
+demo_state = data['demo_state']  # Shape: (101, 13)
+state = data['state'][-1]  # Shape: (99, 13) - predicted trajectory
+t_time = data['data_time']
+
+fig, ax = plt.subplots(3,1)
+for idx in range(3):
+    ax[idx].plot(demo_state[:, idx], 'r--', linewidth=5)
+    ax[idx].plot(demo_state_noise[:, idx], 'g-', linewidth=5)
+    ax[idx].plot(state[:, idx], 'b-', linewidth=8)
+    ax[idx].plot(demo_state[:, idx], 'r--', linewidth=5)
+    ax[idx].yaxis.set_major_locator(MaxNLocator(nbins=3, integer=True))
+ax[-1].set_xlabel('$t$')
+ax[0].set_ylabel('$x$')
+ax[1].set_ylabel('$y$')
+ax[2].set_ylabel('$z$')
+# remove x-axis tick labels on top two axes
+ax[0].tick_params(labelbottom=False)
+ax[1].tick_params(labelbottom=False)
+ax[1].legend(['Ground Truth', 'Observation','Prediction'], loc='lower right', bbox_to_anchor=(1.1, 0.8))
+# plt.tight_layout()
 plt.show()

@@ -5,7 +5,7 @@ import os
 import sys
 import transforms3d
 sys.path.append(os.getcwd() + '/src')
-import ImitationLearningMPC
+import OCIL
 import Env
 
 case = 1
@@ -42,7 +42,6 @@ angle = (np.random.random()-0.5) * 2 * np.pi
 dist = np.random.random()*init_range
 pred = [goal_position[0]+np.cos(angle)*dist,goal_position[1]+np.sin(angle)*dist,goal_position[2]+(np.random.random()-0.5)*height_range]
 pred = init_position
-# pred = [0,0,0]
 pred_init = np.hstack([pred, goal_v_I, goal_q, goal_w_B])
 
 # ------------------------------ Set up dynamic system ------------------------------
@@ -59,11 +58,9 @@ trueSys.initCost(true_theta[6], true_theta[7], true_theta[8], true_theta[9], tru
 R = np.array([[1,0,0],[0,1,0],[0,0,1]]) # rotation matrix in numpy 2D array
 init_state = np.hstack([init_position, init_velocity, transforms3d.quaternions.mat2quat(R).tolist(), 0, 0, 0])
 
-system = ImitationLearningMPC.ImitationLearning(project, init_state, true_theta, dynsys, trueSys, dt, horizon, H, MemoryTime, noise, pred_init, saveFlag)
+system = OCIL.ImitationLearning(project, init_state, true_theta, dynsys, trueSys, dt, horizon, H, MemoryTime, noise, pred_init, saveFlag)
 system.set_iteration(1)
-system.set_sigma(0.)
 system.initialize_parameter()
-
 
 if case == 1:
     switch_time = [50,80]

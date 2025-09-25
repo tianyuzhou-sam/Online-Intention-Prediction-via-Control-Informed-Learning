@@ -17,7 +17,7 @@ import copy
 
 
 class ImitationLearning:
-    def __init__(self, project="", init_state=None, true_theta=None, dynsys=None, trueSys=None, dt=None, horizon=None, H=None, MemoryTime=None, noise=None, pred_init=None , saveFlag=False):
+    def __init__(self, project="", init_state=None, true_theta=None, dynsys=None, trueSys=None, dt=None, horizon=None, H=None, MemoryTime=None, window=None, noise=None, pred_init=None , saveFlag=False):
 
         self.saveFlag = saveFlag
         self.plotTrajFlag = False
@@ -37,7 +37,7 @@ class ImitationLearning:
         self.init_state = init_state
         self.noise = noise
         self.pred_init = pred_init
-        
+        self.window = window
         # ------------------------------ get demos data ------------------------------
         self.true_theta = true_theta
         self.demoSys = PDP.OCSys()
@@ -67,7 +67,7 @@ class ImitationLearning:
         self.lqr_solver = PDP.LQR()
 
         # ------------------------------ initilize tunable parameter ------------------------------
-        self.sigma = 0.5
+        self.sigma = 0.
         self.theta = np.zeros(self.sysoc.n_auxvar)
         self.theta[-len(self.pred_init):] = self.pred_init
         self.H = H
@@ -94,6 +94,14 @@ class ImitationLearning:
         self.x_his = []
         self.u_his = []
 
+        self.dt = dt
+        self.switch_time = [window]
+        self.switch_flag = 0
+        while self.switch_time[-1]+window < horizon:
+            self.switch_time.append(self.switch_time[-1] + window)
+        self.switch_goal = []
+
+
     # def set_sigma(self, sigma):
     #     self.sigma = sigma
     #     self.theta[:-len(self.pred_init)] = self.true_theta[:-len(self.pred_init)] + self.sigma * np.random.random(len(self.true_theta)-len(self.pred_init)) - self.sigma / 2
@@ -118,6 +126,9 @@ class ImitationLearning:
     def predict_horizon(self, H):
         self.H = H
 
+    def set_goal_range(self, goal_range):
+        self.goal_range = goal_range
+
     def switch_target(self, switch_time, switch_goal):
         self.switch_time = switch_time
         self.switch_goal = switch_goal
@@ -133,7 +144,10 @@ class ImitationLearning:
 
                 if idx == self.switch_time[self.switch_flag]:
                     
-                    goal_position = self.switch_goal[self.switch_flag]
+                    # goal_position = self.switch_goal[self.switch_flag]
+                    angle = (np.random.random()-0.5) * 2 * np.pi
+                    goal_position = [self.goal_range*np.cos(angle)+self.demo_state_traj[self.switch_time[self.switch_flag]][0], self.goal_range*np.sin(angle)+self.demo_state_traj[self.switch_time[self.switch_flag]][1], 1]
+                    self.switch_goal += [goal_position]
                     goal_v_I = np.array([0,0,0])
                     goal_q = Env.toQuaternion(0, [0,0,1])
                     goal_w_B = np.array([0,0,0])
@@ -327,7 +341,7 @@ class ImitationLearning:
             self.plotLoss()
             # self.plotTraj(state_traj, control_traj)
 
-        self.animateTraj()
+        # self.animateTraj()
             
 
     def evaluateLoss(self, state_traj, control_traj, idx):
@@ -534,8 +548,8 @@ class ImitationLearning:
         y_max = max(demo_state_noise[:,1])
         x_range = x_max - x_min
         y_range = y_max - y_min
-        ax2.set_xlim([-6, 6])
-        ax2.set_ylim([-1, 6])
+        ax2.set_xlim([-10,10])
+        ax2.set_ylim([-10,10])
 
         # Initialize animation elements
         trajectory_line, = ax2.plot([], [], 'r-', linewidth=2, alpha=0.7, label='Trajectory')
