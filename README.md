@@ -5,12 +5,23 @@
 **Tianyu Zhou · Zihao Liang · Zehui Lu · Shaoshuai Mou**
 Purdue University
 
-[**Paper**](https://arxiv.org/abs/2604.09303) ·
+American Control Conference, 2026
+
+[**Paper**](https://ieeexplore.ieee.org/document/11615487) ·
+[**arXiv**](https://arxiv.org/abs/2604.09303) ·
+[**Project page**](https://zihaoliang.github.io/Online-Intention-Prediction-via-Control-Informed-Learning/) ·
+[**Video**](https://youtu.be/rKf8zJNEKc8) ·
 [**Code**](https://github.com/ZihaoLiang/Online-Intention-Prediction-via-Control-Informed-Learning)
 
+[![ACC 2026](https://img.shields.io/badge/ACC-2026-00629b.svg)](https://ieeexplore.ieee.org/document/11615487)
 [![arXiv](https://img.shields.io/badge/arXiv-2604.09303-b31b1b.svg)](https://arxiv.org/abs/2604.09303)
+[![Project page](https://img.shields.io/badge/project%20page-live-34d399.svg)](https://zihaoliang.github.io/Online-Intention-Prediction-via-Control-Informed-Learning/)
 
 </div>
+
+> **[Open the project page →](https://zihaoliang.github.io/Online-Intention-Prediction-via-Control-Informed-Learning/)**
+> Scrub through four recorded runs — two simulated, two from motion capture —
+> and watch the predicted goal catch up each time the real one moves.
 
 Watch a robot move and you can guess where it is going. This code does that
 guessing online, one measurement at a time.
@@ -165,10 +176,10 @@ motion-capture server, so they only run in the lab.
 ```
 src/
   OCIL.py                     full-horizon prediction  (+ SysID, PolicyTuning)
-  OCILSwitch.py               full horizon, random target switches
+  OCILSwitch.py               full horizon, random goal switches
   ImitationLearningMPC.py     shifting horizon
-  ImitationLearningSwitch.py  shifting horizon, random target switches
-  ImitationLearning.py        fixed target; ImitationLearningNN for neural dynamics
+  ImitationLearningSwitch.py  shifting horizon, random goal switches
+  ImitationLearning.py        fixed goal; ImitationLearningNN for neural dynamics
   EKF.py                      the predict and update steps, 20 lines
   Env.py                      the quadrotor: dynamics, cost, neural dynamics, animation
   generateTraj.py             write a demonstration to .mat
@@ -179,6 +190,7 @@ externals/
                               LQR solver used for the gradient
 example/                      the simulation scripts above
 experiment/                   hardware data, a separate learner, hardware drivers
+docs/                         the project page, served by GitHub Pages
 ```
 
 ## Reproducing the figures
@@ -223,12 +235,12 @@ those folders are not in the repository. You have to produce them first:
 ## Citation
 
 ```bibtex
-@article{zhou2026online,
-  title   = {Online Intention Prediction via Control-Informed Learning},
-  author  = {Zhou, Tianyu and Liang, Zihao and Lu, Zehui and Mou, Shaoshuai},
-  journal = {arXiv preprint arXiv:2604.09303},
-  year    = {2026},
-  url     = {https://arxiv.org/abs/2604.09303}
+@inproceedings{zhou2026online,
+  author    = {Zhou, Tianyu and Liang, Zihao and Lu, Zehui and Mou, Shaoshuai},
+  title     = {Online Intention Prediction via Control-Informed Learning},
+  booktitle = {2026 American Control Conference (ACC)},
+  year      = {2026},
+  pages     = {1259--1264}
 }
 ```
 
